@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.internyay.publicvm.com/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "905072813135-n8hkf18j07spkm4o8dungeliuk62fa4p.apps.googleusercontent.com"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.internyay.publicvm.com/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "905072813135-n8hkf18j07spkm4o8dungeliuk62fa4p.apps.googleusercontent.com"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.internyay.publicvm.com/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "905072813135-n8hkf18j07spkm4o8dungeliuk62fa4p.apps.googleusercontent.com"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
