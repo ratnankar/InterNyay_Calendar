@@ -45,6 +45,10 @@ export async function googleIdToken(): Promise<string> {
   } catch (e: any) {
     if (e instanceof GoogleCancelled || e?.code === statusCodes?.SIGN_IN_CANCELLED) throw new GoogleCancelled()
     if (e?.code === statusCodes?.IN_PROGRESS) throw new GoogleCancelled()
+    // Android "developer error" (code 10 / 28444): the build's signing SHA-1 or package name is not in the Android OAuth client
+    if (/28444|DEVELOPER_ERROR|developer console/i.test(`${e?.code ?? ''} ${e?.message ?? ''}`) || String(e?.code) === '10') {
+      throw new Error('Google sign-in is not set up for this build yet (developer error). Add this build\'s SHA-1 for com.internyay.calendar to an Android OAuth client in Google Cloud.')
+    }
     throw e
   }
 }

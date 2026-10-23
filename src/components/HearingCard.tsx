@@ -1,13 +1,13 @@
-import { useRef, useState } from 'react'
-import { Animated, StyleSheet, View } from 'react-native'
+import React, { useCallback, useMemo, useState } from 'react'
+import { StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
 import { HearingEntry, HearingLeave } from '../types'
 import { applicationFields, badgesOf, hearingFields, roomOf } from '../hearings'
 import { leaveNotice } from '../leave'
 import { listNoOf } from '../listNo'
 import { useNotes } from '../NotesContext'
-import { duration, easeOut, native, useReduceMotion } from '../motion'
 import { cardShadow, font, makeStyles, radius, readable, theme, withAlpha } from '../theme'
+import Chevron from './Chevron'
 import DetailTable from './DetailTable'
 import Expand from './Expand'
 import HistoryPanel from './HistoryPanel'
@@ -36,13 +36,11 @@ interface Props {
   onNote?: (e: HearingEntry, startNew?: boolean) => void
 }
 
-export default function HearingCard({ entry: e, colour, leave, highlighted, hideCourt, onNote }: Props) {
+function HearingCard({ entry: e, colour, leave, highlighted, hideCourt, onNote }: Props) {
   const s = useS()
   const { notes } = useNotes()
-  const noteCount = notes.filter(n => n.caseId === e.caseId).length
+  const noteCount = useMemo(() => notes.reduce((n, x) => (x.caseId === e.caseId && !x.deleted ? n + 1 : n), 0), [notes, e.caseId])
   const [more, setMore] = useState(false)
-  const turn = useRef(new Animated.Value(0)).current
-  const reduce = useReduceMotion()
 
   const misc = e.kind === 'misc'
   const hasResult = !!(e.outcome || e.notes)
@@ -51,59 +49,54 @@ export default function HearingCard({ entry: e, colour, leave, highlighted, hide
   const judge = leave?.judgeName || e.judgeName
   const badges = badgesOf(e)
 
-  const toggle = () => {
-    const next = !more
-    if (!reduce) {
-      Animated.timing(turn, { toValue: next ? 1 : 0, duration: duration.base, easing: easeOut, useNativeDriver: native }).start()
-    } else {
-      turn.setValue(next ? 1 : 0)
-    }
-    setMore(next)
-  }
-
-  const rotate = turn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] })
+  // Tapping the top of the card (or "More details") opens the details; tapping it again closes them
+  const toggle = useCallback(() => setMore(v => !v), [])
 
   return (
     <View style={[s.card, highlighted && { borderColor: colour }]}>
       <View style={[s.bar, { backgroundColor: colour }]} />
       <View style={s.body}>
-        <View style={s.top}>
-          {hideCourt ? null : (
-            <View style={[s.chip, { backgroundColor: colour }]}>
-              <Text style={[s.chipText, { color: readable(colour).ink }]} numberOfLines={1}>{e.court}</Text>
-            </View>
+        {/* The whole top of the card is one tap target. It is not announced separately: screen readers use the
+            "More details" button below, which does the same thing. */}
+        <Tappable onPress={toggle} pressedScale={0.99} accessible={false}>
+          <View style={s.top}>
+            {hideCourt ? null : (
+              <View style={[s.chip, { backgroundColor: colour }]}>
+                <Text style={[s.chipText, { color: readable(colour).ink }]} numberOfLines={1}>{e.court}</Text>
+              </View>
+            )}
+            {e.courtNo ? <Text style={s.courtNo}>Court No. {e.courtNo}</Text> : null}
+            {misc ? <View style={s.miscTag}><Text style={s.miscTagText}>Misc. application</Text></View> : null}
+            {!e.upcoming ? <Text style={s.heard}>Heard</Text> : null}
+            {listNo ? <View style={s.listNo}><Text style={s.listNoText}>List no. {listNo}</Text></View> : null}
+          </View>
+
+          {misc ? (
+            <>
+              <Text style={s.title}>{e.applicationType}</Text>
+              <Text style={s.caseNo}>Filed in: {[e.caseTitle, e.caseNo].filter(Boolean).join(' • ')}</Text>
+            </>
+          ) : (
+            <>
+              <Text style={s.title}>{e.caseTitle}</Text>
+              {e.caseNo ? <Text style={s.caseNo}>{e.caseNo}</Text> : null}
+            </>
           )}
-          {e.courtNo ? <Text style={s.courtNo}>Court No. {e.courtNo}</Text> : null}
-          {misc ? <View style={s.miscTag}><Text style={s.miscTagText}>Misc. application</Text></View> : null}
-          {!e.upcoming ? <Text style={s.heard}>Heard</Text> : null}
-          {listNo ? <View style={s.listNo}><Text style={s.listNoText}>List no. {listNo}</Text></View> : null}
-        </View>
 
-        {misc ? (
-          <>
-            <Text style={s.title}>{e.applicationType}</Text>
-            <Text style={s.caseNo}>Filed in: {[e.caseTitle, e.caseNo].filter(Boolean).join(' • ')}</Text>
-          </>
-        ) : (
-          <>
-            <Text style={s.title}>{e.caseTitle}</Text>
-            {e.caseNo ? <Text style={s.caseNo}>{e.caseNo}</Text> : null}
-          </>
-        )}
+          {leave?.onLeave ? (
+            <View style={s.leave}>
+              <Text style={s.leaveText}>{leaveNotice(leave)}</Text>
+            </View>
+          ) : null}
 
-        {leave?.onLeave ? (
-          <View style={s.leave}>
-            <Text style={s.leaveText}>{leaveNotice(leave)}</Text>
-          </View>
-        ) : null}
-
-        <Expand open={!more}>
-          <View style={s.details}>
-            <Line label="Judge" value={judge} />
-            <Line label="Room" value={roomOf(e)} />
-            <Line label="Client" value={e.clientName} />
-          </View>
-        </Expand>
+          <Expand open={!more}>
+            <View style={s.details}>
+              <Line label="Judge" value={judge} />
+              <Line label="Room" value={roomOf(e)} />
+              <Line label="Client" value={e.clientName} />
+            </View>
+          </Expand>
+        </Tappable>
 
         {hasResult ? (
           <View style={[s.result, { backgroundColor: withAlpha(colour, 0.08), borderColor: withAlpha(colour, 0.3) }]}>
@@ -128,9 +121,7 @@ export default function HearingCard({ entry: e, colour, leave, highlighted, hide
         <View style={s.actions}>
           <Tappable onPress={toggle} pressedScale={0.96} accessibilityRole="button" accessibilityState={{ expanded: more }} style={s.more}>
             <Text style={s.moreText}>{more ? 'Show less' : 'More details'}</Text>
-            <Animated.View style={{ transform: [{ rotate }] }}>
-              <Icon name="chevronDown" size={16} color={theme.brand} />
-            </Animated.View>
+            <Chevron open={more} size={16} color={theme.brand} />
           </Tappable>
           {onNote ? (
             <Tappable onPress={() => onNote(e, noteCount === 0)} pressedScale={0.96} accessibilityRole="button" accessibilityLabel="Notes for this case" style={s.more}>
@@ -174,3 +165,5 @@ const useS = makeStyles(() => StyleSheet.create({
   more: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 },
   moreText: { ...font.small, fontWeight: '700', color: theme.brand },
 }))
+
+export default React.memo(HearingCard)

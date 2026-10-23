@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import { Animated, StyleSheet, TextInput as RNTextInput, TextInputFocusEvent, TextInputProps } from 'react-native'
 import { TextInput } from '../ui'
-import { duration } from '../motion'
+import { duration, ease } from '../motion'
 import { font, radius, theme, makeStyles } from '../theme'
 
 interface Props extends Omit<TextInputProps, 'style'> {
@@ -14,7 +14,7 @@ const Field = React.forwardRef<React.ComponentRef<typeof RNTextInput>, Props>(fu
   const focus = useRef(new Animated.Value(0)).current
 
   const move = (toValue: number) => {
-    Animated.timing(focus, { toValue, duration: duration.fast, useNativeDriver: false }).start()
+    Animated.timing(focus, { toValue, duration: duration.fast, easing: ease.standard, useNativeDriver: false }).start()
   }
 
   const borderColor = focus.interpolate({

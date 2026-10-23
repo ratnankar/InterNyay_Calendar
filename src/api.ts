@@ -2,13 +2,17 @@ import { API_BASE_URL, DEMO } from './config'
 import * as demo from './demo'
 import { CaseItem, Note, CourtRow, HearingLeave, JudgeLeave, HearingRow, Holiday, LoginResponse, MiscApplication, Page, User } from './types'
 
-export class ApiError extends Error {
+class ApiError extends Error {
   status: number
   constructor(message: string, status: number) {
     super(message)
     this.status = status
   }
 }
+
+// Safe reads from a caught value (anything can be thrown): the message to show and the HTTP status, if it is an ApiError
+export const errorMessage = (e: unknown, fallback: string): string => (e instanceof Error && e.message) || fallback
+export const errorStatus = (e: unknown): number | undefined => (e instanceof ApiError ? e.status : undefined)
 
 let onUnauthorized: (() => void) | null = null
 export const setUnauthorizedHandler = (fn: (() => void) | null) => { onUnauthorized = fn }
@@ -18,7 +22,7 @@ const REQUEST_TIMEOUT_MS = 30_000
 
 const UNREACHABLE = 'Cannot reach InterNyay. Check your internet connection and try again.'
 
-async function send(path: string, init: RequestInit, token?: string | null): Promise<any> {
+async function send<T>(path: string, init: RequestInit, token?: string | null): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let res: Response
@@ -42,7 +46,7 @@ async function send(path: string, init: RequestInit, token?: string | null): Pro
     clearTimeout(timer)
   }
 
-  let data: any = null
+  let data: { message?: unknown; error?: unknown } | null = null
   try { data = text ? JSON.parse(text) : null } catch { data = null }
 
   if (!res.ok) {
@@ -50,7 +54,7 @@ async function send(path: string, init: RequestInit, token?: string | null): Pro
     const msg = (data && (data.message || data.error)) || (res.status === 401 ? 'Your session has ended. Please sign in again.' : `Something went wrong (${res.status})`)
     throw new ApiError(String(msg), res.status)
   }
-  return data
+  return data as T
 }
 
 function qs(params?: Record<string, string | number | undefined>): string {
@@ -60,14 +64,14 @@ function qs(params?: Record<string, string | number | undefined>): string {
 }
 
 const get = <T,>(path: string, token: string, params?: Record<string, string | number | undefined>): Promise<T> =>
-  send(path + qs(params), { method: 'GET' }, token)
+  send<T>(path + qs(params), { method: 'GET' }, token)
 
 export function login(email: string, password: string, accountType?: 'ADVOCATE' | 'ASSOCIATE'): Promise<LoginResponse> {
-  return send('/auth/login', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, accountType }) })
+  return send<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, accountType }) })
 }
 
 export function googleLogin(idToken: string, accountType?: 'ADVOCATE' | 'ASSOCIATE'): Promise<LoginResponse> {
-  return send('/auth/google/login', { method: 'POST', body: JSON.stringify({ idToken, accountType }) })
+  return send<LoginResponse>('/auth/google/login', { method: 'POST', body: JSON.stringify({ idToken, accountType }) })
 }
 
 async function allPages<T>(path: string, token: string, params: Record<string, string | number | undefined>): Promise<T[]> {
@@ -132,7 +136,7 @@ export const fetchNotes = async (token: string): Promise<ServerNote[]> =>
   (await get<{ notes?: ServerNote[] }>('/notes', token))?.notes || []
 
 export const saveNoteOnServer = (token: string, n: Note): Promise<ServerNote> =>
-  send(`/notes/${encodeURIComponent(n.id)}`, {
+  send<ServerNote>(`/notes/${encodeURIComponent(n.id)}`, {
     method: 'PUT',
     body: JSON.stringify({
       title: n.title, body: n.body, ink: n.ink || null, pinned: !!n.pinned,
@@ -141,12 +145,12 @@ export const saveNoteOnServer = (token: string, n: Note): Promise<ServerNote> =>
   }, token)
 
 export const deleteNoteOnServer = (token: string, id: string, at: number): Promise<ServerNote> =>
-  send(`/notes/${encodeURIComponent(id)}?at=${at}`, { method: 'DELETE' }, token)
+  send<ServerNote>(`/notes/${encodeURIComponent(id)}?at=${at}`, { method: 'DELETE' }, token)
 
 // Colours, court filter and settings of the account. data is null and updatedAt 0 until something was saved
-export interface ServerPrefs { data: unknown; updatedAt: number }
+interface ServerPrefs { data: unknown; updatedAt: number }
 
 export const fetchPrefs = (token: string): Promise<ServerPrefs> => get<ServerPrefs>('/app-preferences', token)
 
 export const savePrefsOnServer = (token: string, data: unknown, updatedAt: number): Promise<ServerPrefs> =>
-  send('/app-preferences', { method: 'PUT', body: JSON.stringify({ data, updatedAt }) }, token)
+  send<ServerPrefs>('/app-preferences', { method: 'PUT', body: JSON.stringify({ data, updatedAt }) }, token)

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Animated, StyleProp, ViewStyle } from 'react-native'
-import { duration, easeOut, native, useReduceMotion } from '../motion'
+import { duration, ease, native, useReduceMotion } from '../motion'
 
 interface Props {
   open: boolean
@@ -25,12 +25,12 @@ export default function Expand({ open, children, style }: Props) {
   const phase = useRef<'idle' | 'opening' | 'closing'>('idle')
   const run = useRef<Animated.CompositeAnimation | null>(null)
 
-  const animate = (to: number, show: boolean) => {
+  const animate = (to: number, show: boolean, ms: number = duration.base) => {
     run.current?.stop()
     target.current = to
     run.current = Animated.parallel([
-      Animated.timing(height, { toValue: to, duration: duration.base, easing: easeOut, useNativeDriver: false }),
-      Animated.timing(fade, { toValue: show ? 1 : 0, duration: show ? duration.base : duration.fast, easing: easeOut, useNativeDriver: native }),
+      Animated.timing(height, { toValue: to, duration: ms, easing: ease.standard, useNativeDriver: false }),
+      Animated.timing(fade, { toValue: show ? 1 : 0, duration: show ? ms : Math.min(ms, duration.fast), easing: show ? ease.standard : ease.exit, useNativeDriver: native }),
     ])
     run.current.start(({ finished }) => {
       if (!finished) return
@@ -80,7 +80,9 @@ export default function Expand({ open, children, style }: Props) {
 
   const onLayout = (h: number) => {
     measured.current = h
-    if (phase.current === 'opening' && h > 0 && Math.abs(h - target.current) > 0.5) animate(h, true)
+    // The first measurement starts the animation; a later one (content that re-flowed while opening) only
+    // re-aims it quickly, so the block never restarts from the beginning
+    if (phase.current === 'opening' && h > 0 && Math.abs(h - target.current) > 0.5) animate(h, true, target.current < 0 ? duration.base : duration.fast)
   }
 
   if (!mounted) return null

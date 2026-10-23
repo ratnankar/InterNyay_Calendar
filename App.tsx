@@ -13,8 +13,11 @@ import HomeScreen from './src/screens/HomeScreen'
 import LoginScreen from './src/screens/LoginScreen'
 import { radius, theme } from './src/theme'
 import { installWebStyles } from './src/webStyles'
+import ErrorBoundary from './src/ErrorBoundary'
+import { installErrorGuard } from './src/errorGuard'
 
 installWebStyles()
+installErrorGuard()
 
 function Root() {
   const { session, loading } = useAuth()
@@ -38,7 +41,7 @@ function Root() {
 
   return (
     <Reveal variant="fade" style={s.fill} key={session ? session.token : 'guest'}>
-      {session ? <HomeScreen token={session.token} /> : <LoginScreen />}
+      <ErrorBoundary>{session ? <HomeScreen token={session.token} /> : <LoginScreen />}</ErrorBoundary>
     </Reveal>
   )
 }

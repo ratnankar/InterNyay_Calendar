@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Modal, Platform, StyleSheet, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { Text, TextInput } from '../ui'
@@ -39,16 +39,22 @@ export default function SearchScreen({ visible, token, entries, judgeLeaves, col
 
   useEffect(() => { if (!visible) { setQ(''); setOpen(null) } }, [visible])
 
+  // The searchable text of every entry is built once per data load (on the first search), not on every keystroke,
+  // and the list follows the typing a moment later so the keyboard never waits for it
+  const index = useRef<{ src: HearingEntry[]; rows: { e: HearingEntry; h: string }[] } | null>(null)
+  const query = useDeferredValue(q)
+
   const results = useMemo(() => {
-    const terms = q.toLowerCase().split(/\s+/).filter(Boolean)
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
     if (!terms.length) return []
     const today = todayKey()
-    const hit = entries.filter(e => { const h = haystack(e); return terms.every(t => h.includes(t)) })
+    if (!index.current || index.current.src !== entries) index.current = { src: entries, rows: entries.map(e => ({ e, h: haystack(e) })) }
+    const hit = index.current.rows.filter(r => terms.every(t => r.h.includes(t))).map(r => r.e)
 
     const upcoming = hit.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
     const past = hit.filter(e => e.date < today).sort((a, b) => b.date.localeCompare(a.date))
     return [...upcoming, ...past].slice(0, 120)
-  }, [q, entries])
+  }, [query, entries])
 
   useEffect(() => {
     const dates = [...new Set<string>(results.slice(0, 30).filter(e => e.kind === 'hearing').map(e => e.date))].slice(0, 12)

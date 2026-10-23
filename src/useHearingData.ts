@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState } from 'react-native'
-import { fetchCases, fetchCourts, fetchHearings, fetchHolidays, fetchJudgeLeaves, fetchMiscApplications, fetchNoHearingDates } from './api'
+import { fetchCases, fetchCourts, fetchHearings, fetchHolidays, fetchJudgeLeaves, fetchMiscApplications, fetchNoHearingDates, errorMessage, errorStatus } from './api'
 import { DEMO } from './config'
 import { addDays, dateKey, shortDate, todayKey } from './dates'
 import { buildEntries, courtsOf, groupByDate } from './hearings'
@@ -66,8 +66,9 @@ export function useHearingData(token: string, userId?: number | string) {
         fetchNoHearingDates(token).catch(() => null),
         fetchCourts(token).catch(() => null),
         fetchJudgeLeaves(token).catch(() => null),
-        fetchMiscApplications(token).catch((e: any) => {
-          if (e?.status === 403 || e?.status === 404) return [] as MiscApplication[]
+        fetchMiscApplications(token).catch((e: unknown) => {
+          const status = errorStatus(e)
+          if (status === 403 || status === 404) return [] as MiscApplication[]
           miscProblem = true
           return null
         }),
@@ -85,16 +86,16 @@ export function useHearingData(token: string, userId?: number | string) {
       show(fresh, today)
       if (keep) { saved.current = fresh; saveHearingCache(userId, fresh) }
       lastLoaded.current = Date.now()
-    } catch (e: any) {
+    } catch (e) {
       const old = saved.current
       if (silent) {
         // Keep showing what is already on screen; the next refresh will try again
       } else if (old) {
         // No internet or the server did not answer: keep working with the last copy
         show(old, today)
-        setNotice(`${e?.status === 0 ? 'You are offline' : 'Could not refresh'}. Showing the hearings saved on this phone on ${savedLabel(old.savedAt)}.`)
+        setNotice(`${errorStatus(e) === 0 ? 'You are offline' : 'Could not refresh'}. Showing the hearings saved on this phone on ${savedLabel(old.savedAt)}.`)
       } else {
-        setError(e?.message || 'Could not load hearings')
+        setError(errorMessage(e, 'Could not load hearings'))
       }
     } finally {
       if (!silent) {

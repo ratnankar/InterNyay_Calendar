@@ -7,9 +7,9 @@ import { loadNotes, saveNotes } from './storage'
 import { Note } from './types'
 
 type Patch = Partial<Pick<Note, 'title' | 'body' | 'ink' | 'pinned' | 'caseId' | 'caseTitle'>>
-export type SaveStatus = 'saved' | 'saving' | 'error'
+type SaveStatus = 'saved' | 'saving' | 'error'
 // off: nothing to sync (demo), ok: the server has every note, syncing: a round is running, failed: some notes are waiting for internet
-export type SyncState = 'off' | 'ok' | 'syncing' | 'failed'
+type SyncState = 'off' | 'ok' | 'syncing' | 'failed'
 
 export const TITLE_MAX = 120
 export const BODY_MAX = 10000

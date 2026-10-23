@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '../AuthContext'
 import AppBar from '../components/AppBar'
 import ConfirmModal from '../components/ConfirmModal'
+import ErrorBoundary from '../ErrorBoundary'
 import DateSheet from '../components/DateSheet'
 import Drawer from '../components/Drawer'
 import Icon from '../components/Icon'
@@ -14,7 +15,6 @@ import MonthStrip from '../components/MonthStrip'
 import NotepadSheet, { NoteCase } from '../components/NotepadSheet'
 import NavPanel, { toggleCourt } from '../components/NavPanel'
 import Reveal from '../components/Reveal'
-import { animateLayout } from '../motion'
 import SearchScreen from '../components/SearchScreen'
 import SettingsSheet from '../components/SettingsSheet'
 import Skeleton from '../components/Skeleton'
@@ -87,12 +87,13 @@ export default function HomeScreen({ token }: { token: string }) {
     setAnchor(next)
   }
 
+  // Keyed on the month, not the day: tapping another date in the same month must not rescan every hearing
+  const monthKey = anchor.slice(0, 7)
   const monthEntries = useMemo(() => {
-    const prefix = anchor.slice(0, 7)
     const out: HearingEntry[] = []
-    byDate.forEach((list, k) => { if (k.startsWith(prefix)) out.push(...list) })
+    byDate.forEach((list, k) => { if (k.startsWith(monthKey)) out.push(...list) })
     return out
-  }, [anchor, byDate])
+  }, [monthKey, byDate])
 
   const rangeList = useMemo(() => monthEntries.filter(e => inCourts(court, e.court)), [monthEntries, court])
 
@@ -106,6 +107,22 @@ export default function HomeScreen({ token }: { token: string }) {
     loadListNos(token, dates).then(changed => { if (live && changed) setItemsLoaded(n => n + 1) })
     return () => { live = false }
   }, [token, month, byDate, loading])
+
+  // What a menu item opens (a sheet, a refresh) waits until the menu has finished sliding out, so the two never
+  // compete for the same frames. With the menu docked there is nothing to wait for.
+  const afterDrawer = useRef<(() => void) | null>(null)
+  const closeDrawerThen = (fn: () => void) => {
+    if (docked || !drawerOpen) { setDrawerOpen(false); fn(); return }
+    afterDrawer.current = fn
+    setDrawerOpen(false)
+  }
+  const openDrawer = () => { afterDrawer.current = null; setDrawerOpen(true) }
+  const dismissDrawer = () => { afterDrawer.current = null; setDrawerOpen(false) }
+  const onDrawerClosed = useCallback(() => {
+    const fn = afterDrawer.current
+    afterDrawer.current = null
+    fn?.()
+  }, [])
 
   const refresh = () => { clearListNos(); reload(); loadMe() }
   const refreshRef = useRef(refresh)
@@ -173,8 +190,8 @@ export default function HomeScreen({ token }: { token: string }) {
     [refreshing, stableRefresh],
   )
 
-  // Court filter chips glide in and out instead of jumping
-  const changeCourt = (next: typeof court) => { animateLayout(); setCourt(next) }
+  // No LayoutAnimation here: it would also animate every chip of the calendar grid, which hitches on a busy month
+  const changeCourt = (next: typeof court) => { setCourt(next) }
 
   const picker = (
     <MiniMonth
@@ -195,9 +212,9 @@ export default function HomeScreen({ token }: { token: string }) {
       onCourt={changeCourt}
       colourOf={colourOf}
       onPickColour={setColour}
-      onRefresh={() => { setDrawerOpen(false); refresh() }}
-      onSettings={() => { setDrawerOpen(false); setSettingsOpen(true) }}
-      onNotepad={() => { setDrawerOpen(false); setNotepad({ scope: null }) }}
+      onRefresh={() => closeDrawerThen(refresh)}
+      onSettings={() => closeDrawerThen(() => setSettingsOpen(true))}
+      onNotepad={() => closeDrawerThen(() => setNotepad({ scope: null }))}
       top={docked ? picker : undefined}
     />
   )
@@ -213,7 +230,7 @@ export default function HomeScreen({ token }: { token: string }) {
             subtitle={subtitle}
             showMenu={!docked}
             showArrows={arrows}
-            onMenu={() => setDrawerOpen(true)}
+            onMenu={openDrawer}
             onPrev={() => step(-1)}
             onNext={() => step(1)}
             onToday={goToday}
@@ -293,8 +310,9 @@ export default function HomeScreen({ token }: { token: string }) {
         </View>
       </View>
 
-      {!docked ? <Drawer visible={drawerOpen} onClose={() => setDrawerOpen(false)}>{panel}</Drawer> : null}
+      {!docked ? <Drawer visible={drawerOpen} onClose={dismissDrawer} onClosed={onDrawerClosed}>{panel}</Drawer> : null}
 
+      <ErrorBoundary fallback={null} resetKey={sheetDate} onError={() => setSheetDate(null)}>
       <DateSheet
         token={token} date={sheetDate}
         entries={sheetDate ? byDate.get(sheetDate) || [] : []}
@@ -302,9 +320,16 @@ export default function HomeScreen({ token }: { token: string }) {
         noHearing={sheetDate ? noHearing.has(sheetDate) : false}
         judgeLeaves={judgeLeaves} courts={sortedCourts} selectedCourt={court} colourOf={colourOf} onNote={openCaseNotes} onClose={() => setSheetDate(null)} onStep={stepSheetDay}
       />
-      <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <NotepadSheet visible={!!notepad} scope={notepad?.scope || null} startNew={!!notepad?.startNew} onClose={() => setNotepad(null)} />
-      <SearchScreen visible={searchOpen} token={token} entries={entries} judgeLeaves={judgeLeaves} colourOf={colourOf} onNote={openCaseNotes} onClose={() => setSearchOpen(false)} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null} resetKey={settingsOpen} onError={() => setSettingsOpen(false)}>
+        <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null} resetKey={!!notepad} onError={() => setNotepad(null)}>
+        <NotepadSheet visible={!!notepad} scope={notepad?.scope || null} startNew={!!notepad?.startNew} onClose={() => setNotepad(null)} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null} resetKey={searchOpen} onError={() => setSearchOpen(false)}>
+        <SearchScreen visible={searchOpen} token={token} entries={entries} judgeLeaves={judgeLeaves} colourOf={colourOf} onNote={openCaseNotes} onClose={() => setSearchOpen(false)} />
+      </ErrorBoundary>
       <ConfirmModal
         visible={signOutOpen} danger icon="signOut" title="Sign out?" confirmLabel="Sign out"
         message="You will need to sign in again to see your hearings."

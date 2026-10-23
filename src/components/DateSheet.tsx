@@ -7,7 +7,7 @@ import { longDate, parseKey, relativeLabel } from '../dates'
 import { countLabel, noCourtSelected } from '../hearings'
 import { useLayout } from '../layout'
 import { rememberListNos } from '../listNo'
-import { animateLayout, useSlideIn } from '../motion'
+import { animateLayout, stagger, useSlideIn } from '../motion'
 import { asHearingLeave, leaveForEntry } from '../leave'
 import { holidayCourtLabel, holidayCourtOf } from '../holidays'
 import { HearingEntry, HearingLeave, Holiday, JudgeLeave } from '../types'
@@ -109,12 +109,18 @@ export default function DateSheet({ token, date, entries, holiday, noHearing, ju
     return () => { live = false }
   }, [token, date, entries.length])
 
-  const leaveOf = (e: HearingEntry): HearingLeave | undefined => {
-    const sv = leave[e.caseId]
-    if (sv?.onLeave) return sv
-    const l = leaveForEntry(judgeLeaves, e)
-    return l ? { ...asHearingLeave(e, l), causeListNo: sv?.causeListNo } : sv
-  }
+  // One stable object per entry (a new one on every redraw would defeat the memoised cards)
+  const leaveByKey = useMemo(() => {
+    const m = new Map<string, HearingLeave | undefined>()
+    entries.forEach(e => {
+      const sv = leave[e.caseId]
+      if (sv?.onLeave) { m.set(e.key, sv); return }
+      const l = leaveForEntry(judgeLeaves, e)
+      m.set(e.key, l ? { ...asHearingLeave(e, l), causeListNo: sv?.causeListNo } : sv)
+    })
+    return m
+  }, [entries, leave, judgeLeaves])
+  const leaveOf = (e: HearingEntry) => leaveByKey.get(e.key)
 
   // A chip chosen on another day that this day does not have counts as All
   const court = fCourt && entries.some(e => e.court === fCourt) ? fCourt : null
@@ -131,15 +137,30 @@ export default function DateSheet({ token, date, entries, holiday, noHearing, ju
 
   const groupOf = (list: HearingEntry[]) => {
     const g = new Map<string, HearingEntry[]>()
-    list.forEach(e => g.set(e.court, [...(g.get(e.court) || []), e]))
+    list.forEach(e => { const grp = g.get(e.court); if (grp) grp.push(e); else g.set(e.court, [e]) })
     return [...g.entries()]
   }
   const mineGroups = useMemo(() => groupOf(mine), [mine])
   const otherGroups = useMemo(() => groupOf(others), [others])
 
+  // The first cards mount with the sheet; the rest follow once the slide-in has finished, so a busy day
+  // does not build dozens of cards while the sheet is still moving
+  const [full, setFull] = useState(false)
+  useEffect(() => {
+    if (!date) { setFull(false); return }
+    const h = setTimeout(() => setFull(true), 350)
+    return () => clearTimeout(h)
+  }, [date])
+  let budget = full ? Infinity : 6
+  const take = (list: HearingEntry[]) => {
+    const part = full ? list : list.slice(0, Math.max(0, budget))
+    budget -= part.length
+    return part
+  }
+
   const isSunday = !!date && parseKey(date).getDay() === 0
   let order = 0
-  const next = () => 120 + Math.min(order++, 6) * 55
+  const next = () => 100 + stagger(order++)
 
   return (
     <Sheet visible={!!date} onClose={onClose}>
@@ -175,31 +196,39 @@ export default function DateSheet({ token, date, entries, holiday, noHearing, ju
             ) : null}
             {entries.length > 0 && shown.length === 0 ? <Text style={s.empty}>No hearings match these filters.</Text> : null}
 
-            {selectedCourt.length > 0 ? mineGroups.map(([court, list]) => (
+            {selectedCourt.length > 0 ? mineGroups.map(([court, list]) => {
+              const part = take(list)
+              if (!part.length) return null
+              return (
               <View key={court}>
                 <SectionHeader colour={colourOf(court)} label={court} count={list.length} />
-                {list.map(e => (
+                {part.map(e => (
                   <Reveal key={e.key} delay={next()} skip={stepping}>
                     <HearingCard entry={e} colour={colourOf(e.court)} leave={leaveOf(e)} highlighted hideCourt onNote={onNote} />
                   </Reveal>
                 ))}
               </View>
-            )) : null}
+              )
+            }) : null}
 
             {selectedCourt.length > 0 && mine.length === 0 && shown.length > 0 ? (
               <Text style={s.note}>{noCourtSelected(selectedCourt) ? 'No court is selected.' : `No hearing or application in ${selectedCourt.length === 1 ? selectedCourt[0] : 'the selected courts'} on this date.`}</Text>
             ) : null}
 
-            {otherGroups.map(([court, list]) => (
+            {otherGroups.map(([court, list]) => {
+              const part = take(list)
+              if (!part.length) return null
+              return (
               <View key={court}>
                 <SectionHeader colour={colourOf(court)} label={selectedCourt.length ? `Other court: ${court}` : court} count={list.length} />
-                {list.map(e => (
+                {part.map(e => (
                   <Reveal key={e.key} delay={next()} skip={stepping}>
                     <HearingCard entry={e} colour={colourOf(e.court)} leave={leaveOf(e)} hideCourt onNote={onNote} />
                   </Reveal>
                 ))}
               </View>
-            ))}
+              )
+            })}
           </SheetScroll>
         </Animated.View>
         {date ? (

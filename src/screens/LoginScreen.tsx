@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Text } from '../ui'
 import { useAuth } from '../AuthContext'
+import { errorMessage } from '../api'
 import Field from '../components/Field'
 import Icon from '../components/Icon'
 import IconButton from '../components/IconButton'
@@ -49,8 +50,8 @@ export default function LoginScreen() {
     setBusy(true); setError('')
     try {
       await signIn(email, password, needType ? type : undefined)
-    } catch (e: any) {
-      const msg: string = e?.message || 'Could not sign in'
+    } catch (e) {
+      const msg = errorMessage(e, 'Could not sign in')
       if (/advocate and an associate/i.test(msg)) {
         setNeedType(true)
         setError('This email has an advocate and an associate account. Choose one and sign in again.')
@@ -63,9 +64,9 @@ export default function LoginScreen() {
     setGBusy(true); setError('')
     try {
       await signInWithGoogle(needType ? type : undefined)
-    } catch (e: any) {
+    } catch (e) {
       if (e instanceof GoogleCancelled) return
-      const msg: string = e?.message || 'Could not sign in with Google'
+      const msg = errorMessage(e, 'Could not sign in with Google')
       if (/advocate and an associate/i.test(msg)) {
         setNeedType(true)
         setError('This email has an advocate and an associate account. Choose one and tap Google again.')

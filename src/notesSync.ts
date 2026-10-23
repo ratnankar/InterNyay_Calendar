@@ -18,7 +18,7 @@ const fromServer = (s: api.ServerNote): Note => s.deleted
 export const isDirty = (n: Note) => n.synced !== n.updatedAt && !!(n.deleted || n.title || n.body || n.ink)
 
 // Combine what the phone has with what the server has. The result is the new local list
-export function merge(local: Note[], server: api.ServerNote[]): Note[] {
+function merge(local: Note[], server: api.ServerNote[]): Note[] {
   const out = new Map(local.map(n => [n.id, n]))
   for (const s of server) {
     const mine = out.get(s.id)
@@ -48,7 +48,7 @@ export function reconcile(current: Note[], snapshot: Note[], result: Note[]): No
   return out
 }
 
-export interface PushResult { notes: Note[]; failed: boolean }
+interface PushResult { notes: Note[]; failed: boolean }
 
 // Send every changed note and every deletion. The server answers with what it stores; if that is newer
 // (another phone edited it later), the phone takes the server's copy
@@ -62,10 +62,11 @@ export async function push(token: string, list: Note[], isCurrent: () => boolean
       const stored = n.deleted ? await api.deleteNoteOnServer(token, n.id, n.updatedAt) : await api.saveNoteOnServer(token, n)
       const next = stored.updatedAt > n.updatedAt ? fromServer(stored) : { ...n, synced: n.updatedAt }
       notes = notes.map(x => (x.id === n.id ? next : x))
-    } catch (e: any) {
+    } catch (e) {
       failed = true
       // A refusal of this one note (too large, limit reached) must not block the others; a network error ends the round
-      if (!(e && typeof e.status === 'number' && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 409 && e.status !== 429)) break
+      const status = api.errorStatus(e)
+      if (!(status !== undefined && status >= 400 && status < 500 && status !== 401 && status !== 409 && status !== 429)) break
     }
   }
   return { notes: notes.filter(n => !(n.deleted && n.synced === n.updatedAt)), failed }

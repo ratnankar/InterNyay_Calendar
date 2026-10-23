@@ -1,10 +1,10 @@
 import { useWindowDimensions } from 'react-native'
 
-export const BREAKPOINT = { medium: 600, docked: 900, large: 1280, dialog: 720, short: 480 }
+const BREAKPOINT = { medium: 600, docked: 900, large: 1280, dialog: 720, short: 480 }
 
-export type SizeClass = 'compact' | 'medium' | 'expanded' | 'large'
+type SizeClass = 'compact' | 'medium' | 'expanded' | 'large'
 
-export interface Layout {
+interface Layout {
   width: number
   height: number
   sizeClass: SizeClass
@@ -16,7 +16,7 @@ export interface Layout {
   lowHeight: boolean
 }
 
-export function layoutFor(width: number, height: number): Layout {
+function layoutFor(width: number, height: number): Layout {
   const sizeClass: SizeClass = width >= BREAKPOINT.large ? 'large' : width >= BREAKPOINT.docked ? 'expanded' : width >= BREAKPOINT.medium ? 'medium' : 'compact'
   return {
     width,

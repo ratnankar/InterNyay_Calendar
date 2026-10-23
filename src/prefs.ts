@@ -15,11 +15,11 @@ export interface Prefs {
 export const DEFAULT_PREFS: Prefs = { colours: {}, courtFilter: [], settings: DEFAULT_SETTINGS, updatedAt: 0 }
 
 // What is sent to the server (the timestamp travels beside it)
-export interface PrefsData { colours: CourtColours; courtFilter: string[]; settings: Settings }
+interface PrefsData { colours: CourtColours; courtFilter: string[]; settings: Settings }
 
 export const toData = (p: Prefs): PrefsData => ({ colours: p.colours, courtFilter: p.courtFilter, settings: p.settings })
 
-export function normalizeData(raw: unknown): PrefsData {
+function normalizeData(raw: unknown): PrefsData {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const colours: CourtColours = {}
   if (r.colours && typeof r.colours === 'object' && !Array.isArray(r.colours)) {

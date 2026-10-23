@@ -5,9 +5,17 @@ export const native = Platform.OS !== 'web'
 
 export const duration = { fast: 140, base: 240, slow: 420 }
 
-export const easeOut = Easing.out(Easing.cubic)
+// One set of curves for the whole app, so every surface accelerates and settles the same way
+export const ease = {
+  // Things that resize or move inside a screen: expanding cards, list reveals, month slides, chevrons
+  standard: Easing.bezier(0.2, 0, 0, 1),
+  // Large surfaces arriving (the menu panel): quick start, long soft landing
+  enter: Easing.bezier(0.05, 0.7, 0.1, 1),
+  // Surfaces and content leaving: a gentle pick-up
+  exit: Easing.bezier(0.4, 0, 1, 1),
+}
 
-export const easePop = Easing.out(Easing.back(1.6))
+const easeOut = ease.standard
 
 // Kept outside React so plain functions (animateLayout) can honour the phone's reduce-motion setting too
 let reduced = false
@@ -129,8 +137,8 @@ export function useMonthPager(order: number, onStep: (delta: number) => void, on
         busy.current = true
         pending.current = dir
         Animated.parallel([
-          Animated.timing(x, { toValue: -dir * reach.current, duration: 110, easing: Easing.in(Easing.quad), useNativeDriver: native }),
-          Animated.timing(fade, { toValue: 0, duration: 110, useNativeDriver: native }),
+          Animated.timing(x, { toValue: -dir * reach.current, duration: 110, easing: ease.exit, useNativeDriver: native }),
+          Animated.timing(fade, { toValue: 0, duration: 110, easing: ease.exit, useNativeDriver: native }),
         ]).start(() => {
           step.current(dir)
           // Safety net: if the month did not change, bring the old one back

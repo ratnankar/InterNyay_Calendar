@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Animated, Image, StyleSheet, View } from 'react-native'
 import Icon from './Icon'
-import { duration, native } from '../motion'
+import { duration, ease, native } from '../motion'
 import { theme, makeStyles } from '../theme'
 
 interface Props {
@@ -20,7 +20,7 @@ export default function Avatar({ uri, size = 32 }: Props) {
   }, [uri, fade])
 
   const show = () => {
-    Animated.timing(fade, { toValue: 1, duration: duration.base, useNativeDriver: native }).start()
+    Animated.timing(fade, { toValue: 1, duration: duration.base, easing: ease.standard, useNativeDriver: native }).start()
   }
 
   return (

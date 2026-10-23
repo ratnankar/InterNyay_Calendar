@@ -1,6 +1,6 @@
 import { Holiday } from './types'
 
-export type HolidayCourt = 'DISTRICT' | 'HIGH' | 'BOTH'
+type HolidayCourt = 'DISTRICT' | 'HIGH' | 'BOTH'
 
 export function holidayCourtOf(h?: Holiday | null): HolidayCourt {
   const v = String(h?.courtType || '').toUpperCase()

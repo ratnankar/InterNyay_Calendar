@@ -45,7 +45,7 @@ export interface HearingRow {
   orderDocId?: string | null
 }
 
-export interface MiscHearing {
+interface MiscHearing {
   id: number
   date: string
   note?: string | null

@@ -18,7 +18,7 @@ const isDisposed = (status?: string | null) => (status || '').trim().toLowerCase
 const MISC_LINE = /^\s*misc\.?\s*application\s*:\s*(.+?)\s*$/i
 const LINE_BREAK = /\r\n|[\n\v\f\r\u0085\u2028\u2029]/
 
-export function isMiscOnlyRow(r: HearingRow): boolean {
+function isMiscOnlyRow(r: HearingRow): boolean {
   if (r.orderDocId && r.orderDocId.trim()) return false
   if (r.outcome && r.outcome.trim()) return false
   if (!r.notes || !r.notes.trim()) return false
@@ -59,7 +59,7 @@ function docLines(a: MiscApplication): MiscDocItem[] {
   ]
 }
 
-export function applicationStatusText(e: Pick<HearingEntry, 'applicationStatus' | 'applicationOutcome'>): string {
+function applicationStatusText(e: Pick<HearingEntry, 'applicationStatus' | 'applicationOutcome'>): string {
   return isDisposed(e.applicationStatus) && e.applicationOutcome ? `${e.applicationStatus} - ${e.applicationOutcome}` : e.applicationStatus || 'Pending'
 }
 
@@ -155,7 +155,9 @@ export function buildEntries(cases: CaseItem[], rows: HearingRow[], today: strin
     seen.add(e.key)
     out.push(e)
     const item = { date: r.date, note: [r.outcome, r.notes].map(v => (v || '').trim()).filter(Boolean).join(' — ') }
-    history.set(r.caseId, [...(history.get(r.caseId) || []), item])
+    const past = history.get(r.caseId)
+    if (past) past.push(item)
+    else history.set(r.caseId, [item])
   }
   for (const e of out) e.caseHistory = (history.get(e.caseId) || []).sort((x, y) => y.date.localeCompare(x.date))
 

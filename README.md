@@ -87,7 +87,7 @@ After changing it, restart with `npx expo start -c` (the `-c` clears the cache).
 
 ## Google sign-in (needs a development build)
 Google sign-in uses native code, so it does not run in Expo Go or the browser (the button is hidden there).
-1. `npx expo install @react-native-google-signin/google-signin expo-dev-client`
+1. `@react-native-google-signin/google-signin` and `expo-dev-client` are already in `package.json`; just run `npm install`.
 2. In Google Cloud Console create OAuth clients: **Web**, **iOS** (bundle id `com.internyay.calendar`) and **Android**
    (package `com.internyay.calendar` + your SHA-1).
 3. Fill `.env`: `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME`.
@@ -115,7 +115,7 @@ npm i -g eas-cli && eas login
 eas build -p android --profile preview      # installable APK (profile in eas.json)
 eas build -p android --profile production   # app bundle for the Play Store
 ```
-`eas.json` also has a `development` profile (development client, used for Google sign-in). Run `npm run check` first.
+`eas.json` also has a `development` profile (development client, used for Google sign-in); all profiles share the env values in its `base` profile. Run `npm run check` first.
 
 ## How the server tells this app from the website
 Every request carries the header `X-Client-App: calendar` (`src/api.ts`). The InterNyay backend stores it with each sign-in, and the

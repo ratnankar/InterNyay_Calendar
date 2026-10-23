@@ -4,7 +4,7 @@ Already done in this project
 - App icon, adaptive icon (Android), monochrome icon, favicon and splash image generated from `assets/logo.png` (gold scales on navy #0A1628).
 - App name `InterNyay Calendar`, package `com.internyay.calendar`.
 - `eas.json`: `EXPO_PUBLIC_API_BASE_URL` and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` are set for every build profile.
-  (`.env` is gitignored, so EAS cloud builds never saw it. Without this, the built app has no Google button.)
+  (`.env` is gitignored, so EAS cloud builds never saw it. Without this, the built app has no Google button.) They live once, in the `base` profile that the others extend.
 - Google web client ID in the app equals `GOOGLE_CLIENT_ID` on the backend. Keep them identical.
 
 ## 1. Install and check (on your PC)

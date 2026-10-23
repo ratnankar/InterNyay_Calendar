@@ -37,7 +37,7 @@ export function toggleCourt(sel: string[], all: string[], c: string): string[] {
   return next.length >= all.length ? [] : next
 }
 
-export function pickCourt(sel: string[], all: string[], c: string): string[] {
+function pickCourt(sel: string[], all: string[], c: string): string[] {
   if (sel.length === 0) return all.length > 1 ? [c] : []
   return toggleCourt(sel, all, c)
 }

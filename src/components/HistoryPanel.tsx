@@ -5,7 +5,7 @@ import { fullDate } from '../dates'
 import { HistoryItem } from '../types'
 import { font, makeStyles, theme } from '../theme'
 import Expand from './Expand'
-import Icon from './Icon'
+import Chevron from './Chevron'
 import Tappable from './Tappable'
 
 interface Props {
@@ -25,7 +25,7 @@ export default function HistoryPanel({ items, next, showNext = true, current, de
       <View style={s.head}>
         <Tappable onPress={() => setOpen(v => !v)} pressedScale={0.98} accessibilityRole="button" accessibilityState={{ expanded: open }}
           accessibilityLabel={`Hearing history, ${items.length} ${items.length === 1 ? 'entry' : 'entries'}`} style={s.toggle}>
-          <Icon name={open ? 'chevronDown' : 'chevronRight'} size={18} color={theme.muted} />
+          <Chevron open={open} name="chevronRight" openDeg={90} size={18} color={theme.muted} />
           <Text style={s.toggleText}>Hearing History{items.length > 0 ? ` (${items.length})` : ''}</Text>
         </Tappable>
         {showNext ? (

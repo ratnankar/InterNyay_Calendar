@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { ComponentRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Animated, Keyboard, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
 import { longDate, MONTHS, parseKey } from '../dates'
 import { noCourtSelected } from '../hearings'
@@ -46,6 +46,20 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
   useEffect(() => { if (open) setEverOpened(true) }, [open])
 
   const panelHeight = Math.max(MIN_PANEL, Math.min(MAX_PANEL, Math.round(zoneHeight * 0.8)))
+
+  // On a phone the keyboard slides over the bottom of the screen, and this panel is anchored to the bottom,
+  // so the search box ended up underneath it. While the keyboard is up, lift the panel above it and shrink it to fit.
+  const zoneRef = useRef<ComponentRef<typeof View>>(null)
+  const [lift, setLift] = useState(0)
+  useEffect(() => {
+    const ios = Platform.OS === 'ios'
+    const show = Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', e => {
+      zoneRef.current?.measureInWindow((_x, y, _w, h) => setLift(Math.max(0, Math.round(y + h - e.endCoordinates.screenY))))
+    })
+    const hide = Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', () => setLift(0))
+    return () => { show.remove(); hide.remove() }
+  }, [])
+  const shownHeight = lift > 0 ? Math.max(200, Math.min(panelHeight, zoneHeight - lift - 8)) : panelHeight
   const handleHeight = HANDLE_HEIGHT + bottomInset
   const closedY = panelHeight - handleHeight
   const y = useRef(new Animated.Value(closedY)).current
@@ -130,14 +144,14 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
   const pick = (d: string) => onPickDate?.(d)
 
   return (
-    <View style={s.zone} pointerEvents="box-none" onLayout={e => setZoneHeight(e.nativeEvent.layout.height)}>
+    <View ref={zoneRef} collapsable={false} style={s.zone} pointerEvents="box-none" onLayout={e => setZoneHeight(e.nativeEvent.layout.height)}>
       {zoneHeight > 0 && placed ? (
         <>
           <Animated.View pointerEvents={open ? 'auto' : 'none'} style={[s.scrim, { opacity: y.interpolate({ inputRange: [0, closedY], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
             <Pressable style={s.fill} onPress={() => onOpenChange(false)} accessibilityLabel="Close judges on leave" />
           </Animated.View>
 
-          <Animated.View style={[s.panel, { height: panelHeight, transform: [{ translateY: y }] }]}>
+          <Animated.View style={[s.panel, { height: shownHeight, bottom: lift, transform: [{ translateY: y }] }]}>
             <View {...pan.panHandlers}>
               <Tappable
                 onPress={() => onOpenChange(!open)}

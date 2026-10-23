@@ -14,7 +14,7 @@ const TITLES = new Set(['hon', 'honble', 'honourable', 'justice', 'judge', 'mr',
 const words = (name: string): string[] =>
   name.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w && !TITLES.has(w))
 
-export function sameJudge(a?: string | null, b?: string | null): boolean {
+function sameJudge(a?: string | null, b?: string | null): boolean {
   if (!a || !b) return false
   const x = words(a)
   const y = words(b)

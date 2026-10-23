@@ -7,7 +7,7 @@ import Icon, { IconName } from './Icon'
 import Reveal from './Reveal'
 import Tappable from './Tappable'
 
-export interface MenuItem {
+interface MenuItem {
   key: string
   label: string
   icon?: IconName

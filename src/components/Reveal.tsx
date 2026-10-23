@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Animated, StyleProp, ViewStyle } from 'react-native'
-import { duration, easeOut, easePop, native, useReduceMotion } from '../motion'
+import { duration, ease, native, useReduceMotion } from '../motion'
 
 interface Props {
   children: React.ReactNode
@@ -19,7 +19,7 @@ export default function Reveal({ children, variant = 'rise', delay = 0, skip = f
   const first = useRef({ delay, variant, skip })
 
   useEffect(() => {
-    const { delay: wait, variant: kind, skip: instant } = first.current
+    const { delay: wait, skip: instant } = first.current
     if (reduce || instant) {
       progress.setValue(1)
       return
@@ -28,7 +28,7 @@ export default function Reveal({ children, variant = 'rise', delay = 0, skip = f
       toValue: 1,
       delay: wait,
       duration: duration.base,
-      easing: kind === 'pop' ? easePop : easeOut,
+      easing: ease.standard,
       useNativeDriver: native,
     })
     run.start()
@@ -37,7 +37,7 @@ export default function Reveal({ children, variant = 'rise', delay = 0, skip = f
 
   const transform =
     variant === 'rise' ? [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }]
-    : variant === 'pop' ? [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] }) }]
+    : variant === 'pop' ? [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }]
     : []
 
   return <Animated.View style={[style, { opacity: progress, transform }]}>{children}</Animated.View>
