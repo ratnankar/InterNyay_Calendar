@@ -129,7 +129,10 @@ function MonthCalendar({ year, month, weekStart, byDate, holidayByDate, noHearin
         return { key, date, column: d, chips: chipsFor(key) }
       }),
     )
-  }, [year, month, weekStart, first, rows, byDate, holidayByDate, noHearing, judgeLeaves, selectedCourt, colourOf, narrow, roomy])
+    // `weekStart` is intentionally not a dependency: nothing in the body above reads it,
+    // and useMemo only permits recomputation, it does not force it. If the grid ever needs
+    // to shift with the week-start setting, monthOffset/dateKey must accept it too.
+  }, [year, month, first, rows, byDate, holidayByDate, noHearing, judgeLeaves, selectedCourt, colourOf, narrow, roomy])
 
   const names = roomy ? weekdayNames().map(n => n.toUpperCase()) : weekdayLetters()
 

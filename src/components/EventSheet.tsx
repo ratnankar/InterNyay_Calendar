@@ -50,6 +50,11 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
   const [note, setNote] = useState('')
 
   useEffect(() => { setNote('') }, [e?.key])
+
+  // Extracted so the effect depends on the two values it actually reads, not the whole `e` object
+  const eventCaseId = e?.caseId
+  const eventDate = e?.date
+
   useEffect(() => {
     if (!note) return
     const timer = setTimeout(() => setNote(''), 2200)
@@ -58,13 +63,13 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
 
   useEffect(() => {
     setLeave(undefined)
-    if (!e) return
+    if (!eventDate) return
     let live = true
-    fetchHearingLeave(token, e.date)
-      .then(rows => { rememberListNos(e.date, rows); if (live) setLeave(rows.find(r => r.caseId === e.caseId)) })
+    fetchHearingLeave(token, eventDate)
+      .then(rows => { rememberListNos(eventDate, rows); if (live) setLeave(rows.find(r => r.caseId === eventCaseId)) })
       .catch(() => undefined)
     return () => { live = false }
-  }, [token, e?.caseId, e?.date])
+  }, [token, eventCaseId, eventDate])
 
   const local = e ? leaveForEntry(judgeLeaves, e) : undefined
   const leaveNow: HearingLeave | undefined = leave?.onLeave ? leave : e && local ? { ...asHearingLeave(e, local), causeListNo: leave?.causeListNo } : leave

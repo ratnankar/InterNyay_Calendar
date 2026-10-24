@@ -43,7 +43,8 @@ export function useHearingData(token: string, userId?: number | string) {
   // silent: a background refresh. No spinner, and a failure leaves what is on screen as it is
   const run = useCallback(async (pull: boolean, silent: boolean) => {
     if (!silent) {
-      pull ? setRefreshing(true) : setLoading(true)
+      if (pull) setRefreshing(true)
+      else setLoading(true)
       setError('')
       setNotice('')
     }

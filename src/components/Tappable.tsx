@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Animated, GestureResponderEvent, Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native'
 import { native, useReduceMotion } from '../motion'
+import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props extends Omit<PressableProps, 'style' | 'children'> {
   children: React.ReactNode
@@ -13,10 +14,10 @@ interface Props extends Omit<PressableProps, 'style' | 'children'> {
 }
 
 export default function Tappable({ children, style, containerStyle, pressedScale = 0.97, hoverStyle, selected, onPressIn, onPressOut, ...rest }: Props) {
-  const scale = useRef(new Animated.Value(1)).current
+  const scale = useAnimatedValue(1)
   const reduce = useReduceMotion()
   const [hover, setHover] = useState(false)
-  const pop = useRef(new Animated.Value(1)).current
+  const pop = useAnimatedValue(1)
   const wasSelected = useRef(selected)
 
   useEffect(() => {

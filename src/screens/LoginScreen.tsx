@@ -14,6 +14,7 @@ import { useLayout } from '../layout'
 import { GoogleCancelled, googleAvailable, googleUnavailableReason } from '../googleAuth'
 import { native, useReduceMotion } from '../motion'
 import { cardShadow, font, makeStyles, radius, theme, useScheme, withAlpha } from '../theme'
+import { useAnimatedValue } from '../useAnimatedValue'
 
 type AccountType = 'ADVOCATE' | 'ASSOCIATE'
 
@@ -33,7 +34,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('')
   const [needType, setNeedType] = useState(false)
   const [type, setType] = useState<AccountType>('ADVOCATE')
-  const shake = useRef(new Animated.Value(0)).current
+  const shake = useAnimatedValue(0)
 
   useEffect(() => {
     if (!error || reduce) return

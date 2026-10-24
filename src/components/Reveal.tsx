@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { Animated, StyleProp, ViewStyle } from 'react-native'
 import { duration, ease, native, useReduceMotion } from '../motion'
+import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   children: React.ReactNode
@@ -13,7 +14,7 @@ interface Props {
 
 export default function Reveal({ children, variant = 'rise', delay = 0, skip = false, style }: Props) {
   const reduce = useReduceMotion()
-  const progress = useRef(new Animated.Value(skip ? 1 : 0)).current
+  const progress = useAnimatedValue(skip ? 1 : 0)
   // Plays once when it first appears. Later changes of delay or variant (a list that re-sorts or filters)
   // must not stop it half way and start it again, which showed as a stutter
   const first = useRef({ delay, variant, skip })

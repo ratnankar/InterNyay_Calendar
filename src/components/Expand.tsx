@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Animated, StyleProp, ViewStyle } from 'react-native'
 import { duration, ease, native, useReduceMotion } from '../motion'
+import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   open: boolean
@@ -18,8 +19,8 @@ export default function Expand({ open, children, style }: Props) {
   const [mounted, setMounted] = useState(open)
   // true only while the height is being animated
   const [fixed, setFixed] = useState(false)
-  const height = useRef(new Animated.Value(0)).current
-  const fade = useRef(new Animated.Value(open ? 1 : 0)).current
+  const height = useAnimatedValue(0)
+  const fade = useAnimatedValue(open ? 1 : 0)
   const measured = useRef(0)
   const target = useRef(-1)
   const phase = useRef<'idle' | 'opening' | 'closing'>('idle')

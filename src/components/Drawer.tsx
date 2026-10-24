@@ -3,23 +3,20 @@ import { Animated, Modal, PanResponder, Pressable, StyleSheet, useWindowDimensio
 import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { ease, native, useReduceMotion } from '../motion'
 import { liftShadow, theme, makeStyles } from '../theme'
+import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   visible: boolean
   onClose: () => void
-  // Called once the menu has finished sliding out and is gone. Use it to start whatever the menu item opens
-  // (a sheet, a refresh) so that work never competes with the slide-out animation.
   onClosed?: () => void
   children: React.ReactNode
 }
 
-// Quick start and a long soft landing when opening, a gentle pick-up when closing (shared curves in motion.ts)
 const enterEase = ease.enter
 const exitEase = ease.exit
 const OPEN_MS = 300
 const CLOSE_MS = 210
 const SETTLE_MS = 180
-// Keeps the panel's shadow off the screen edge while it is parked outside the screen
 const SHADOW_GAP = 16
 
 export default function Drawer({ visible, onClose, onClosed, children }: Props) {
@@ -27,10 +24,8 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
   const { width } = useWindowDimensions()
   const panel = Math.min(320, Math.round(width * 0.85))
   const [mounted, setMounted] = useState(visible)
-  // The panel is drawn as one cached layer on Android while it moves (cheap to slide), but not while it rests,
-  // because scrolling a long list inside a cached layer redraws the whole layer on every frame
   const [moving, setMoving] = useState(true)
-  const t = useRef(new Animated.Value(visible ? 1 : 0)).current
+  const t = useAnimatedValue(visible ? 1 : 0)
   const reduce = useReduceMotion()
 
   const reduced = useRef(reduce)
@@ -42,16 +37,10 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
   const panelRef = useRef(panel)
   panelRef.current = panel
 
-  // The slide-in must not start until the Modal has actually mounted and laid out its content.
-  // Starting it in the same tick as setMounted(true) means the first frames are spent creating the
-  // Modal window and the menu rows, and the clock-driven animation has already moved on by the time
-  // anything is visible, so the menu appears to jump or stutter in.
   const laidOut = useRef(false)
   const visibleRef = useRef(visible)
   visibleRef.current = visible
 
-  // Moves the panel to `to` (1 = open, 0 = closed) from wherever it is now. The time is scaled by the distance
-  // left, so closing a panel that was already dragged halfway does not take as long as closing a full one.
   const slideTo = useCallback((to: 0 | 1, from?: number) => {
     const go = (start: number) => {
       const full = to === 1 ? OPEN_MS : CLOSE_MS
@@ -73,27 +62,17 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
     else t.stopAnimation(go)
   }, [t])
 
-  useEffect(() => {
-    if (visible) {
-      if (!mounted) { setMoving(true); setMounted(true); return }
-      if (laidOut.current) { setMoving(true); slideTo(1) }
-    } else if (mounted) {
-      setMoving(true)
-      slideTo(0)
-    }
-  }, [visible, mounted, slideTo])
+  // ⬇️ Moved above PanResponder.create so it's declared before use
+  const settleOpen = (from: number) => {
+    const start = Math.max(0, Math.min(1, from))
+    Animated.timing(t, {
+      toValue: 1,
+      duration: reduced.current ? 0 : Math.round(SETTLE_MS * Math.max(0.35, 1 - start)),
+      easing: enterEase,
+      useNativeDriver: native,
+    }).start(({ finished }) => { if (finished) setMoving(false) })
+  }
 
-  const onPanelLayout = useCallback(() => {
-    if (laidOut.current) return
-    laidOut.current = true
-    // Freshly mounted, so the panel is known to be fully closed: no need to ask the native side where it is
-    if (visibleRef.current) slideTo(1, 0)
-  }, [slideTo])
-
-  const slide = useMemo(() => t.interpolate({ inputRange: [0, 1], outputRange: [-panel - SHADOW_GAP, 0] }), [t, panel])
-
-  // Swipe the menu to the left to close it, from the panel or from the dimmed area beside it. It follows the
-  // finger from the point where the swipe was recognised (so it does not jump), and then either closes or springs back.
   const grabX = useRef(0)
   const [pan] = useState(() =>
     PanResponder.create({
@@ -113,16 +92,23 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
     }),
   )
 
-  // Springs back open from where the finger let go
-  const settleOpen = (from: number) => {
-    const start = Math.max(0, Math.min(1, from))
-    Animated.timing(t, {
-      toValue: 1,
-      duration: reduced.current ? 0 : Math.round(SETTLE_MS * Math.max(0.35, 1 - start)),
-      easing: enterEase,
-      useNativeDriver: native,
-    }).start(({ finished }) => { if (finished) setMoving(false) })
-  }
+  useEffect(() => {
+    if (visible) {
+      if (!mounted) { setMoving(true); setMounted(true); return }
+      if (laidOut.current) { setMoving(true); slideTo(1) }
+    } else if (mounted) {
+      setMoving(true)
+      slideTo(0)
+    }
+  }, [visible, mounted, slideTo])
+
+  const onPanelLayout = useCallback(() => {
+    if (laidOut.current) return
+    laidOut.current = true
+    if (visibleRef.current) slideTo(1, 0)
+  }, [slideTo])
+
+  const slide = useMemo(() => t.interpolate({ inputRange: [0, 1], outputRange: [-panel - SHADOW_GAP, 0] }), [t, panel])
 
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>

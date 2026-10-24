@@ -5,6 +5,7 @@ const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || ''
 
 let mod: any = null
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- must be lazy: the native module throws at import time on web
   if (Platform.OS !== 'web' && WEB_CLIENT_ID) mod = require('@react-native-google-signin/google-signin')
 } catch { mod = null }
 

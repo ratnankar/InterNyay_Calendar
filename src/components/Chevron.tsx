@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect } from 'react'
 import { Animated } from 'react-native'
 import { duration, ease, native, useReduceMotion } from '../motion'
 import { theme } from '../theme'
 import Icon, { IconName } from './Icon'
+import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   open: boolean
@@ -16,7 +17,7 @@ interface Props {
 // The one arrow used by every expandable part, so they all turn the same way at the same speed
 export default function Chevron({ open, name = 'chevronDown', openDeg = 180, size = 16, color }: Props) {
   const reduce = useReduceMotion()
-  const turn = useRef(new Animated.Value(open ? 1 : 0)).current
+  const turn = useAnimatedValue(open ? 1 : 0)
 
   useEffect(() => {
     if (reduce) { turn.setValue(open ? 1 : 0); return }

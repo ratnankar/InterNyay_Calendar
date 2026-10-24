@@ -7,6 +7,7 @@ import { leaveForEntry, leavesOn, sameCourt } from '../leave'
 import { native, useReduceMotion } from '../motion'
 import { font, liftShadow, makeStyles, radius, theme } from '../theme'
 import { HearingEntry, JudgeLeave } from '../types'
+import { useAnimatedValue } from '../useAnimatedValue'
 import Icon from './Icon'
 import LeaveByDay from './LeaveByDay'
 import { CourtChips, LeaveRows, LeaveSearch } from './LeaveParts'
@@ -62,7 +63,7 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
   const shownHeight = lift > 0 ? Math.max(200, Math.min(panelHeight, zoneHeight - lift - 8)) : panelHeight
   const handleHeight = HANDLE_HEIGHT + bottomInset
   const closedY = panelHeight - handleHeight
-  const y = useRef(new Animated.Value(closedY)).current
+  const y = useAnimatedValue(closedY)
   const start = useRef(0)
   const limit = useRef(closedY)
   limit.current = closedY

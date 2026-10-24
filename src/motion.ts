@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AccessibilityInfo, Animated, Easing, LayoutAnimation, PanResponder, Platform, useWindowDimensions } from 'react-native'
+import { useAnimatedValue } from './useAnimatedValue'
 
 export const native = Platform.OS !== 'web'
 
@@ -49,8 +50,8 @@ export function useReduceMotion(): boolean {
 
 export function useSlideIn(order: number, fadeFrom = 0.3) {
   const reduce = useReduceMotion()
-  const shift = useRef(new Animated.Value(0)).current
-  const fade = useRef(new Animated.Value(1)).current
+  const shift = useAnimatedValue(0)
+  const fade = useAnimatedValue(1)
   const last = useRef(order)
 
   useEffect(() => {
@@ -74,8 +75,8 @@ export function useSlideIn(order: number, fadeFrom = 0.3) {
 export function useMonthPager(order: number, onStep: (delta: number) => void, onUp?: () => void, distance = 48) {
   const reduce = useReduceMotion()
   const { width } = useWindowDimensions()
-  const x = useRef(new Animated.Value(0)).current
-  const fade = useRef(new Animated.Value(1)).current
+  const x = useAnimatedValue(0)
+  const fade = useAnimatedValue(1)
   const reach = useRef(0)
   reach.current = Math.min(120, width * 0.3)
   const step = useRef(onStep)
