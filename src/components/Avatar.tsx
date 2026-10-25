@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Animated, Image, StyleSheet, View } from 'react-native'
+import { useAnimatedValue, useOnChange } from '../hooks'
 import Icon from './Icon'
 import { duration, ease, native } from '../motion'
 import { theme, makeStyles } from '../theme'
-import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   uri?: string | null
@@ -15,10 +15,8 @@ export default function Avatar({ uri, size = 32 }: Props) {
   const [failed, setFailed] = useState(false)
   const fade = useAnimatedValue(0)
 
-  useEffect(() => {
-    setFailed(false)
-    fade.setValue(0)
-  }, [uri, fade])
+  useOnChange(uri, () => setFailed(false))
+  useEffect(() => { fade.setValue(0) }, [uri, fade])
 
   const show = () => {
     Animated.timing(fade, { toValue: 1, duration: duration.base, easing: ease.standard, useNativeDriver: native }).start()

@@ -24,7 +24,10 @@ export default function MonthStrip({ selected, byDate, court, onPick }: Props) {
   const [viewport, setViewport] = useState(0)
   const sel = parseKey(selected)
   const year = sel.getFullYear()
+  const month = sel.getMonth()
   const today = parseKey(todayKey())
+  const nowYear = today.getFullYear()
+  const nowMonth = today.getMonth()
 
   const busy = useMemo(() => {
     const months = new Set<number>()
@@ -36,8 +39,8 @@ export default function MonthStrip({ selected, byDate, court, onPick }: Props) {
 
   useEffect(() => {
     if (!viewport) return
-    scroller.current?.scrollTo({ x: Math.max(0, sel.getMonth() * (CHIP + GAP) - viewport / 2 + CHIP / 2), animated: true })
-  }, [viewport, year, sel.getMonth()]) // eslint-disable-line react-hooks/exhaustive-deps
+    scroller.current?.scrollTo({ x: Math.max(0, month * (CHIP + GAP) - viewport / 2 + CHIP / 2), animated: true })
+  }, [viewport, year, month])
 
   return (
     <View style={s.wrap}>
@@ -54,12 +57,12 @@ export default function MonthStrip({ selected, byDate, court, onPick }: Props) {
         onLayout={e => setViewport(e.nativeEvent.layout.width)}
       >
         {MONTHS.map((name, m) => {
-          const isSelected = m === sel.getMonth()
-          const isNow = year === today.getFullYear() && m === today.getMonth()
+          const isSelected = m === month
+          const isNow = year === nowYear && m === nowMonth
           return (
             <Tappable
               key={name}
-              onPress={() => onPick(addMonths(selected, m - sel.getMonth()))}
+              onPress={() => onPick(addMonths(selected, m - month))}
               pressedScale={0.95}
               hoverStyle={isSelected ? undefined : s.hover}
               accessibilityRole="button"

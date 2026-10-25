@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useOnChange } from '../hooks'
 import { Platform, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Text } from '../ui'
@@ -46,15 +47,14 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
   const s = useS()
   const insets = useSafeAreaInsets()
   const { notes } = useNotes()
-  const [leave, setLeave] = useState<HearingLeave | undefined>()
+  const [fetched, setFetched] = useState<{ key: string; leave: HearingLeave | undefined } | null>(null)
   const [note, setNote] = useState('')
+  const caseId = e?.caseId
+  const date = e?.date
+  const leaveKey = `${date}:${caseId}`
+  const leave = fetched?.key === leaveKey ? fetched.leave : undefined
 
-  useEffect(() => { setNote('') }, [e?.key])
-
-  // Extracted so the effect depends on the two values it actually reads, not the whole `e` object
-  const eventCaseId = e?.caseId
-  const eventDate = e?.date
-
+  useOnChange(e?.key, () => setNote(''))
   useEffect(() => {
     if (!note) return
     const timer = setTimeout(() => setNote(''), 2200)
@@ -62,14 +62,13 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
   }, [note])
 
   useEffect(() => {
-    setLeave(undefined)
-    if (!eventDate) return
+    if (date === undefined || caseId === undefined) return
     let live = true
-    fetchHearingLeave(token, eventDate)
-      .then(rows => { rememberListNos(eventDate, rows); if (live) setLeave(rows.find(r => r.caseId === eventCaseId)) })
+    fetchHearingLeave(token, date)
+      .then(rows => { rememberListNos(date, rows); if (live) setFetched({ key: `${date}:${caseId}`, leave: rows.find(r => r.caseId === caseId) }) })
       .catch(() => undefined)
     return () => { live = false }
-  }, [token, eventCaseId, eventDate])
+  }, [token, caseId, date])
 
   const local = e ? leaveForEntry(judgeLeaves, e) : undefined
   const leaveNow: HearingLeave | undefined = leave?.onLeave ? leave : e && local ? { ...asHearingLeave(e, local), causeListNo: leave?.causeListNo } : leave

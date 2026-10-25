@@ -120,7 +120,11 @@ export function useHearingData(token: string, userId?: number | string) {
     return p
   }, [run])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let live = true
+    queueMicrotask(() => { if (live) load() })
+    return () => { live = false }
+  }, [load])
 
   // Coming back to the app (or the browser tab) refreshes the hearings quietly if the copy is a few minutes old
   useEffect(() => {

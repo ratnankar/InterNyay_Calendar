@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AccessibilityInfo, Animated, Easing, LayoutAnimation, PanResponder, Platform, useWindowDimensions } from 'react-native'
-import { useAnimatedValue } from './useAnimatedValue'
+import { useAnimatedValue } from './hooks'
 
 export const native = Platform.OS !== 'web'
 
@@ -70,40 +70,17 @@ export function useSlideIn(order: number, fadeFrom = 0.3) {
   return { opacity: fade, transform: [{ translateX: shift }] }
 }
 
-// Month swiping: the month follows the finger, slides out when released, then the next month slides in.
-// Changes that do not come from a swipe (arrows, keys, pickers) get a short slide-in instead.
-export function useMonthPager(order: number, onStep: (delta: number) => void, onUp?: () => void, distance = 48) {
-  const reduce = useReduceMotion()
-  const { width } = useWindowDimensions()
-  const x = useAnimatedValue(0)
-  const fade = useAnimatedValue(1)
-  const reach = useRef(0)
-  reach.current = Math.min(120, width * 0.3)
-  const step = useRef(onStep)
-  step.current = onStep
-  const up = useRef(onUp)
-  up.current = onUp
-  const reduced = useRef(reduce)
-  reduced.current = reduce
-  const pending = useRef(0)
-  const busy = useRef(false)
-  const last = useRef(order)
+interface PagerInput {
+  reach: number
+  step: (delta: number) => void
+  up?: () => void
+  reduced: boolean
+}
 
-  useEffect(() => {
-    if (last.current === order) return
-    const direction = order > last.current ? 1 : -1
-    last.current = order
-    busy.current = false
-    const fromSwipe = pending.current !== 0
-    pending.current = 0
-    if (reduce) { x.setValue(0); fade.setValue(1); return }
-    x.setValue(direction * (fromSwipe ? reach.current : 28))
-    fade.setValue(fromSwipe ? 0 : 0.3)
-    Animated.parallel([
-      Animated.timing(x, { toValue: 0, duration: duration.base, easing: easeOut, useNativeDriver: native }),
-      Animated.timing(fade, { toValue: 1, duration: duration.base, easing: easeOut, useNativeDriver: native }),
-    ]).start()
-  }, [order, reduce, x, fade])
+function createMonthPager(x: Animated.Value, fade: Animated.Value, distance: number) {
+  const input: PagerInput = { reach: 0, step: () => undefined, reduced: false }
+  let pending = 0
+  let busy = false
 
   const settle = () => {
     Animated.parallel([
@@ -112,49 +89,87 @@ export function useMonthPager(order: number, onStep: (delta: number) => void, on
     ]).start()
   }
 
-  const [responder] = useState(() =>
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => {
-        if (busy.current) return false
-        const sideways = Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6
-        const upward = !!up.current && g.dy < -14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.6
-        return sideways || upward
-      },
-      onPanResponderMove: (_, g) => {
-        if (reduced.current || Math.abs(g.dy) > Math.abs(g.dx)) return
-        x.setValue(g.dx * 0.55)
-        fade.setValue(1 - Math.min(0.45, Math.abs(g.dx) / 400))
-      },
-      onPanResponderRelease: (_, g) => {
-        if (Math.abs(g.dy) > Math.abs(g.dx)) {
-          settle()
-          if (g.dy <= -distance) up.current?.()
-          return
-        }
-        const commit = Math.abs(g.dx) >= distance || (Math.abs(g.vx) > 0.5 && Math.abs(g.dx) > 20)
-        if (!commit) { settle(); return }
-        const dir = g.dx < 0 ? 1 : -1
-        if (reduced.current) { step.current(dir); return }
-        busy.current = true
-        pending.current = dir
-        Animated.parallel([
-          Animated.timing(x, { toValue: -dir * reach.current, duration: 110, easing: ease.exit, useNativeDriver: native }),
-          Animated.timing(fade, { toValue: 0, duration: 110, easing: ease.exit, useNativeDriver: native }),
-        ]).start(() => {
-          step.current(dir)
-          // Safety net: if the month did not change, bring the old one back
-          setTimeout(() => {
-            if (pending.current === 0) return
-            pending.current = 0
-            busy.current = false
-            x.setValue(0)
-            fade.setValue(1)
-          }, 600)
-        })
-      },
-      onPanResponderTerminate: () => settle(),
-    }),
-  )
+  const responder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => {
+      if (busy) return false
+      const sideways = Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6
+      const upward = !!input.up && g.dy < -14 && Math.abs(g.dy) > Math.abs(g.dx) * 1.6
+      return sideways || upward
+    },
+    onPanResponderMove: (_, g) => {
+      if (input.reduced || Math.abs(g.dy) > Math.abs(g.dx)) return
+      x.setValue(g.dx * 0.55)
+      fade.setValue(1 - Math.min(0.45, Math.abs(g.dx) / 400))
+    },
+    onPanResponderRelease: (_, g) => {
+      if (Math.abs(g.dy) > Math.abs(g.dx)) {
+        settle()
+        if (g.dy <= -distance) input.up?.()
+        return
+      }
+      const commit = Math.abs(g.dx) >= distance || (Math.abs(g.vx) > 0.5 && Math.abs(g.dx) > 20)
+      if (!commit) { settle(); return }
+      const dir = g.dx < 0 ? 1 : -1
+      if (input.reduced) { input.step(dir); return }
+      busy = true
+      pending = dir
+      Animated.parallel([
+        Animated.timing(x, { toValue: -dir * input.reach, duration: 110, easing: ease.exit, useNativeDriver: native }),
+        Animated.timing(fade, { toValue: 0, duration: 110, easing: ease.exit, useNativeDriver: native }),
+      ]).start(() => {
+        input.step(dir)
+        // Safety net: if the month did not change, bring the old one back
+        setTimeout(() => {
+          if (pending === 0) return
+          pending = 0
+          busy = false
+          x.setValue(0)
+          fade.setValue(1)
+        }, 600)
+      })
+    },
+    onPanResponderTerminate: () => settle(),
+  })
 
-  return { style: { opacity: fade, transform: [{ translateX: x }] }, handlers: responder.panHandlers }
+  return {
+    responder,
+    sync: (next: PagerInput) => { input.reach = next.reach; input.step = next.step; input.up = next.up; input.reduced = next.reduced },
+    arrive: () => {
+      busy = false
+      const fromSwipe = pending !== 0
+      pending = 0
+      return { fromSwipe, reach: input.reach }
+    },
+  }
+}
+
+// Month swiping: the month follows the finger, slides out when released, then the next month slides in.
+// Changes that do not come from a swipe (arrows, keys, pickers) get a short slide-in instead.
+export function useMonthPager(order: number, onStep: (delta: number) => void, onUp?: () => void, distance = 48) {
+  const reduce = useReduceMotion()
+  const { width } = useWindowDimensions()
+  const x = useAnimatedValue(0)
+  const fade = useAnimatedValue(1)
+  const last = useRef(order)
+  const [pager] = useState(() => createMonthPager(x, fade, distance))
+
+  useEffect(() => {
+    pager.sync({ reach: Math.min(120, width * 0.3), step: onStep, up: onUp, reduced: reduce })
+  })
+
+  useEffect(() => {
+    if (last.current === order) return
+    const direction = order > last.current ? 1 : -1
+    last.current = order
+    const { fromSwipe, reach } = pager.arrive()
+    if (reduce) { x.setValue(0); fade.setValue(1); return }
+    x.setValue(direction * (fromSwipe ? reach : 28))
+    fade.setValue(fromSwipe ? 0 : 0.3)
+    Animated.parallel([
+      Animated.timing(x, { toValue: 0, duration: duration.base, easing: easeOut, useNativeDriver: native }),
+      Animated.timing(fade, { toValue: 1, duration: duration.base, easing: easeOut, useNativeDriver: native }),
+    ]).start()
+  }, [order, reduce, x, fade, pager])
+
+  return { style: { opacity: fade, transform: [{ translateX: x }] }, handlers: pager.responder.panHandlers }
 }

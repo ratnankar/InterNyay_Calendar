@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Animated, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Text } from '../ui'
@@ -80,31 +80,36 @@ function DayLeaveBar({ date, open, onOpenChange, entries, leaves, courts, select
   )
 }
 
+const NO_LEAVE: Record<number, HearingLeave> = {}
+
 export default function DateSheet({ token, date, entries, holiday, noHearing, judgeLeaves, courts, selectedCourt, colourOf, onNote, onClose, onStep }: Props) {
   const s = useS()
-  const [leave, setLeave] = useState<Record<number, HearingLeave>>({})
+  const [fetched, setFetched] = useState<{ date: string; rows: Record<number, HearingLeave> } | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
   // Court chip at the top of the day (null = All). It only narrows the list of this sheet
   const [fCourt, setFCourt] = useState<string | null>(null)
   const slide = useSlideIn(date ? Math.round(parseKey(date).getTime() / 86400000) : 0, 0.3)
 
-  useEffect(() => {
-    if (date) return
+  if (!date && (leaveOpen || fCourt !== null)) {
     setLeaveOpen(false)
     setFCourt(null)
-  }, [date])
+  }
+
+  const leave = fetched && fetched.date === date && entries.length > 0 ? fetched.rows : NO_LEAVE
 
   // Opening the sheet cascades the cards in. Stepping to the next day already slides the list, so the cards just show
-  const shownDate = useRef<string | null>(null)
-  const stepping = !!date && !!shownDate.current && shownDate.current !== date
-  useEffect(() => { shownDate.current = date }, [date])
+  const [shownDate, setShownDate] = useState<string | null>(null)
+  const stepping = !!date && !!shownDate && shownDate !== date
+  useEffect(() => {
+    const h = setTimeout(() => setShownDate(date), 0)
+    return () => clearTimeout(h)
+  }, [date])
 
   useEffect(() => {
-    setLeave({})
     if (!date || entries.length === 0) return
     let live = true
     fetchHearingLeave(token, date)
-      .then(rows => { rememberListNos(date, rows); if (live) setLeave(Object.fromEntries(rows.map(r => [r.caseId, r]))) })
+      .then(rows => { rememberListNos(date, rows); if (live) setFetched({ date, rows: Object.fromEntries(rows.map(r => [r.caseId, r])) }) })
       .catch(() => undefined)
     return () => { live = false }
   }, [token, date, entries.length])
@@ -146,8 +151,9 @@ export default function DateSheet({ token, date, entries, holiday, noHearing, ju
   // The first cards mount with the sheet; the rest follow once the slide-in has finished, so a busy day
   // does not build dozens of cards while the sheet is still moving
   const [full, setFull] = useState(false)
+  if (!date && full) setFull(false)
   useEffect(() => {
-    if (!date) { setFull(false); return }
+    if (!date) return
     const h = setTimeout(() => setFull(true), 350)
     return () => clearTimeout(h)
   }, [date])

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
+import { useOnChange } from '../hooks'
 import { addMonths, dateKey, dayLabel, inMonth, longDate, MONTHS, parseKey, relativeLabel, todayKey, WEEKDAY_LETTERS } from '../dates'
 import { leaveForEntry, leavesOn } from '../leave'
 import { animateLayout, useSlideIn } from '../motion'
@@ -25,8 +26,10 @@ interface Props {
 const CHIP = 44
 const GAP = 4
 
-export default function LeaveByDay({ month, leaves, archive, entries, filtered, onPickDate }: Props) {
+export default function LeaveByDay({ month: monthProp, leaves, archive, entries, filtered, onPickDate }: Props) {
   const s = useS()
+  const [month, setMonth] = useState(monthProp)
+  useOnChange(monthProp, setMonth)
   const scroller = useRef<React.ComponentRef<typeof ScrollView>>(null)
   const [viewport, setViewport] = useState(0)
   // Opens on the current date; "All days" is the optional whole-month overview
@@ -45,6 +48,7 @@ export default function LeaveByDay({ month, leaves, archive, entries, filtered, 
   // While searching, matches are shown for the whole month rather than a single day
   const day: string | null = all || searching ? null : month
   const today = todayKey()
+  const thisMonth = today.slice(0, 7)
   const ref = parseKey(month)
   const label = `${MONTHS[ref.getMonth()]} ${ref.getFullYear()}`
   const slide = useSlideIn(ref.getFullYear() * 12 + ref.getMonth(), 0.3)
@@ -88,10 +92,14 @@ export default function LeaveByDay({ month, leaves, archive, entries, filtered, 
     first.current = false
   }, [day, keys, viewport])
 
-  const pickDay = (key: string) => { setAll(false); onPickDate(key) }
+  const choose = (key: string) => {
+    setMonth(key)
+    startTransition(() => onPickDate(key))
+  }
+  const pickDay = (key: string) => { setAll(false); choose(key) }
 
   // Month changes keep the current view (one day or the whole-month overview); the current month lands on today
-  const moveTo = (key: string) => onPickDate(key.startsWith(today.slice(0, 7)) ? today : key)
+  const moveTo = (key: string) => choose(key.startsWith(thisMonth) ? today : key)
 
   const clear = () => setAll(true)
 
@@ -99,15 +107,16 @@ export default function LeaveByDay({ month, leaves, archive, entries, filtered, 
   const pickMonth = (m: number) => { setPickerOpen(false); moveTo(inMonth(month, pickYear, m)) }
   const goToday = () => { setPickerOpen(false); setMode('days'); pickDay(today) }
 
+  const archiveCutoff = todayKey()
   const groups = useMemo(() => {
     const out = new Map<string, JudgeLeave[]>()
     archive
-      .filter(l => (l.leaveTo || l.leaveFrom) < today)
+      .filter(l => (l.leaveTo || l.leaveFrom) < archiveCutoff)
       .filter(l => !needle || [l.name, l.court, l.district, l.reason].some(v => (v || '').toLowerCase().includes(needle)))
       .sort((a, b) => b.leaveFrom.localeCompare(a.leaveFrom) || a.name.localeCompare(b.name))
       .forEach(l => { const k = l.leaveFrom.slice(0, 7); out.set(k, [...(out.get(k) || []), l]) })
     return [...out.entries()]
-  }, [archive, today, needle])
+  }, [archive, archiveCutoff, needle])
   const archiveTotal = groups.reduce((n, [, list]) => n + list.length, 0)
 
   const shown = day ? (byDay.get(day) || []).length : visibleLeaves.length

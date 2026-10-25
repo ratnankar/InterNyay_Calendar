@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Animated, GestureResponderEvent, Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native'
+import { useAnimatedValue } from '../hooks'
 import { native, useReduceMotion } from '../motion'
-import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props extends Omit<PressableProps, 'style' | 'children'> {
   children: React.ReactNode

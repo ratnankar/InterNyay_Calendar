@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLatest, useOnChange } from '../hooks'
 import { useAuth } from '../AuthContext'
 import AppBar from '../components/AppBar'
 import ConfirmModal from '../components/ConfirmModal'
@@ -47,7 +48,7 @@ export default function HomeScreen({ token }: { token: string }) {
   const [sheetDate, setSheetDate] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [pickerBase, setPickerBase] = useState(anchor)
-  useEffect(() => { setPickerBase(anchor) }, [anchor])
+  useOnChange(anchor, setPickerBase)
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [, setItemsLoaded] = useState(0)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -125,9 +126,8 @@ export default function HomeScreen({ token }: { token: string }) {
   }, [])
 
   const refresh = () => { clearListNos(); reload(); loadMe() }
-  const refreshRef = useRef(refresh)
-  refreshRef.current = refresh
-  const stableRefresh = useCallback(() => refreshRef.current(), [])
+  const getRefresh = useLatest(refresh)
+  const stableRefresh = useCallback(() => getRefresh()(), [getRefresh])
   const selectDate = useCallback((d: string) => { setAnchor(d); setSheetDate(d) }, [])
   const swipeUp = useCallback(() => setLeaveOpen(true), [])
 
@@ -145,8 +145,7 @@ export default function HomeScreen({ token }: { token: string }) {
   }
 
   const anyOpen = !!sheetDate || searchOpen || settingsOpen || signOutOpen || drawerOpen || !!notepad
-  const onKey = useRef<(key: string) => boolean>(() => false)
-  onKey.current = (key: string) => {
+  const getOnKey = useLatest((key: string) => {
     if (anyOpen) return false
     switch (key) {
       case 't': goToday(); return true
@@ -155,7 +154,7 @@ export default function HomeScreen({ token }: { token: string }) {
       case '/': setSearchOpen(true); return true
       default: return false
     }
-  }
+  })
   useEffect(() => {
     const doc = (globalThis as any).document
     if (Platform.OS !== 'web' || !doc) return
@@ -163,11 +162,11 @@ export default function HomeScreen({ token }: { token: string }) {
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return
       const target = ev.target
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-      if (onKey.current(ev.key)) ev.preventDefault()
+      if (getOnKey()(ev.key)) ev.preventDefault()
     }
     doc.addEventListener('keydown', handler)
     return () => doc.removeEventListener('keydown', handler)
-  }, [])
+  }, [getOnKey])
 
   const a = parseKey(anchor)
   // The month chips, title and arrows follow `anchor` at once; the heavy calendar grid catches up right after,

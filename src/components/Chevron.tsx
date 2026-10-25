@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react'
 import { Animated } from 'react-native'
+import { useAnimatedValue } from '../hooks'
 import { duration, ease, native, useReduceMotion } from '../motion'
 import { theme } from '../theme'
 import Icon, { IconName } from './Icon'
-import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   open: boolean

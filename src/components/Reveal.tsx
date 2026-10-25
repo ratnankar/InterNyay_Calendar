@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { Animated, StyleProp, ViewStyle } from 'react-native'
+import { useAnimatedValue } from '../hooks'
 import { duration, ease, native, useReduceMotion } from '../motion'
-import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   children: React.ReactNode

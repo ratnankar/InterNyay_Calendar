@@ -46,9 +46,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const current = useRef(prefs)
   const ready = useRef(false)
   const user = useRef(userId)
-  user.current = userId
   const tokenRef = useRef(token)
-  tokenRef.current = token
+  useEffect(() => {
+    user.current = userId
+    tokenRef.current = token
+  }, [userId, token])
   const syncing = useRef(false)
   const again = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -62,7 +64,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // Open this account's preferences from the phone (signed out: only the view settings of the device)
   useEffect(() => {
     ready.current = false
-    setLoaded(false)
     let live = true
     ;(async () => {
       let p: Prefs
@@ -78,17 +79,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       ready.current = true
       setLoaded(true)
     })()
-    return () => { live = false }
+    return () => { live = false; setLoaded(false) }
   }, [userId, apply])
 
   // Bring the phone and the server to the same copy: the newer one wins. A failure (no internet) is tried again later
   const sync = useCallback(async () => {
-    const tok = tokenRef.current
-    const uid = user.current
-    if (!tok || uid === undefined || !ready.current) return
-    if (syncing.current) { again.current = true; return }
-    syncing.current = true
-    try {
+    const round = async (tok: string, uid: number | string) => {
       const server = await api.fetchPrefs(tok)
       if (user.current !== uid) return
       const mine = current.current
@@ -109,9 +105,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           savePrefs(uid, next)
         }
       }
-    } catch { } finally {
-      syncing.current = false
-      if (again.current) { again.current = false; sync() }
+    }
+    for (;;) {
+      const tok = tokenRef.current
+      const uid = user.current
+      if (!tok || uid === undefined || !ready.current) return
+      if (syncing.current) { again.current = true; return }
+      syncing.current = true
+      try {
+        await round(tok, uid)
+      } catch { } finally {
+        syncing.current = false
+      }
+      if (!again.current) return
+      again.current = false
     }
   }, [apply])
 

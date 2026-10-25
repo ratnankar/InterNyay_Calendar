@@ -9,6 +9,7 @@ import { Note } from '../types'
 import { font, makeStyles, radius, theme } from '../theme'
 import ConfirmModal from './ConfirmModal'
 import Reveal from './Reveal'
+import { useOnChange } from '../hooks'
 import { animateLayout, stagger } from '../motion'
 import Field from './Field'
 import Icon from './Icon'
@@ -65,12 +66,18 @@ export default function NotepadSheet({ visible, scope, startNew, onClose }: Prop
   const close = () => { finish(); onClose() }
   const back = () => { if (note) finish(); else close() }
 
-  useEffect(() => { if (visible) { setEditing(null); setShowAll(false); setQ(''); started.current = false } }, [visible, scope?.caseId])
+  useOnChange(visible ? `open:${scope?.caseId ?? ''}` : 'closed', key => {
+    if (key === 'closed') return
+    setEditing(null)
+    setShowAll(false)
+    setQ('')
+  })
+  useEffect(() => { if (visible) started.current = false }, [visible, scope?.caseId])
   useEffect(() => {
     if (!visible || !startNew || started.current || !loaded || loadFailed) return
     started.current = true
     const id = add(scope ? { caseId: scope.caseId, caseTitle: scope.caseTitle } : undefined)
-    if (id) setEditing(id)
+    if (id) queueMicrotask(() => setEditing(id))
   }, [visible, startNew, loaded, loadFailed, scope, add])
   useEffect(() => {
     if (!copied) return

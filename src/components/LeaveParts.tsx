@@ -25,7 +25,7 @@ interface ChipsProps {
 export function CourtChips({ courts, value, onChange, colourOf }: ChipsProps) {
   const s = useS()
   const all = value.length === 0
-  const pick = (c: string) => onChange(value.includes(c) ? value.filter(x => x !== c) : [...value, c])
+  const pick = (c: string) => onChange(value.length === 1 && value[0] === c ? [] : [c])
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll} contentContainerStyle={s.chipRow}>
       <Tappable

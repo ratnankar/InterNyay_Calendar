@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { GestureResponderEvent, PanResponder, StyleSheet, View } from 'react-native'
 import Svg, { Line, Path } from 'react-native-svg'
 import { Text } from '../ui'
@@ -41,6 +41,71 @@ const Drawn = React.memo(function Drawn({ strokes, paths, gone, colours }: Drawn
   )
 })
 
+interface InkState { strokes: Stroke[]; tool: Tool; colour: number; width: number; onChange: (next: string) => void }
+interface InkSetters {
+  setLive: (points: number[]) => void
+  setGone: (gone: ReadonlySet<number>) => void
+  setFull: (full: boolean) => void
+}
+
+function createInkResponder({ setLive, setGone, setFull }: InkSetters) {
+  let latest: InkState = { strokes: [], tool: 'pen', colour: 0, width: 0, onChange: () => undefined }
+  let points: number[] = []
+  let erased = new Set<number>()
+
+  const scaleNow = () => latest.width / INK_W || 1
+  const at = (e: GestureResponderEvent) => {
+    const scale = scaleNow()
+    return clampPoint(e.nativeEvent.locationX / scale, e.nativeEvent.locationY / scale)
+  }
+  const erase = (x: number, y: number) => {
+    const before = erased.size
+    latest.strokes.forEach((st, i) => { if (!erased.has(i) && touches(st, x, y, ERASER_PX / scaleNow())) erased.add(i) })
+    if (erased.size !== before) setGone(new Set(erased))
+  }
+  const finish = () => {
+    const { strokes: all, tool: active, colour: c, onChange: save } = latest
+    if (active === 'eraser') {
+      if (erased.size) save(serializeInk(all.filter((_, i) => !erased.has(i))))
+      erased = new Set()
+      setGone(NONE)
+      return
+    }
+    const p = points
+    points = []
+    setLive([])
+    if (p.length < 2) return
+    const next = serializeInk([...all, { c, p }])
+    if (next.length > INK_MAX) { setFull(true); return }
+    save(next)
+  }
+
+  const responder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false,
+    onShouldBlockNativeResponder: () => true,
+    onPanResponderGrant: e => {
+      const [x, y] = at(e)
+      setFull(false)
+      if (latest.tool === 'eraser') { erase(x, y); return }
+      points = [x, y]
+      setLive([x, y])
+    },
+    onPanResponderMove: e => {
+      const [x, y] = at(e)
+      if (latest.tool === 'eraser') { erase(x, y); return }
+      if (!isFarEnough(points, x, y)) return
+      points.push(x, y)
+      setLive(points.slice())
+    },
+    onPanResponderRelease: () => finish(),
+    onPanResponderTerminate: () => finish(),
+  })
+
+  return { responder, sync: (next: InkState) => { latest = next } }
+}
+
 export default function InkPad({ value, onChange }: Props) {
   const s = useS()
   const scheme = useScheme()
@@ -56,60 +121,9 @@ export default function InkPad({ value, onChange }: Props) {
   const [full, setFull] = useState(false)
   const [confirm, setConfirm] = useState(false)
 
-  const latest = useRef({ strokes, tool, colour, width, onChange })
-  useEffect(() => { latest.current = { strokes, tool, colour, width, onChange } })
-  const points = useRef<number[]>([])
-  const erased = useRef<Set<number>>(new Set())
-
-  const [responder] = useState(() => {
-    const scaleNow = () => latest.current.width / INK_W || 1
-    const at = (e: GestureResponderEvent) => {
-      const scale = scaleNow()
-      return clampPoint(e.nativeEvent.locationX / scale, e.nativeEvent.locationY / scale)
-    }
-    const erase = (x: number, y: number) => {
-      const before = erased.current.size
-      latest.current.strokes.forEach((st, i) => { if (!erased.current.has(i) && touches(st, x, y, ERASER_PX / scaleNow())) erased.current.add(i) })
-      if (erased.current.size !== before) setGone(new Set(erased.current))
-    }
-    const finish = () => {
-      const { strokes: all, tool: active, colour: c, onChange: save } = latest.current
-      if (active === 'eraser') {
-        if (erased.current.size) save(serializeInk(all.filter((_, i) => !erased.current.has(i))))
-        erased.current = new Set()
-        setGone(NONE)
-        return
-      }
-      const p = points.current
-      points.current = []
-      setLive([])
-      if (p.length < 2) return
-      const next = serializeInk([...all, { c, p }])
-      if (next.length > INK_MAX) { setFull(true); return }
-      save(next)
-    }
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => true,
-      onPanResponderGrant: e => {
-        const [x, y] = at(e)
-        setFull(false)
-        if (latest.current.tool === 'eraser') { erase(x, y); return }
-        points.current = [x, y]
-        setLive([x, y])
-      },
-      onPanResponderMove: e => {
-        const [x, y] = at(e)
-        if (latest.current.tool === 'eraser') { erase(x, y); return }
-        if (!isFarEnough(points.current, x, y)) return
-        points.current.push(x, y)
-        setLive(points.current.slice())
-      },
-      onPanResponderRelease: () => finish(),
-      onPanResponderTerminate: () => finish(),
-    })
+  const [pad] = useState(() => createInkResponder({ setLive, setGone, setFull }))
+  useEffect(() => {
+    pad.sync({ strokes, tool, colour, width, onChange })
   })
 
   const height = width * INK_H / INK_W
@@ -144,7 +158,7 @@ export default function InkPad({ value, onChange }: Props) {
         </View>
       </View>
 
-      <View nativeID="ink-page" style={[s.page, fit]} onLayout={e => setWidth(e.nativeEvent.layout.width)} accessibilityLabel="Handwriting page" {...responder.panHandlers}>
+      <View nativeID="ink-page" style={[s.page, fit]} onLayout={e => setWidth(e.nativeEvent.layout.width)} accessibilityLabel="Handwriting page" {...pad.responder.panHandlers}>
         {width > 0 ? (
           <View style={s.canvas}>
             <Svg width={width} height={height} viewBox={`0 0 ${INK_W} ${INK_H}`}>

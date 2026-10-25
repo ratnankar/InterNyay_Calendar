@@ -18,12 +18,12 @@ interface AuthState {
 const Ctx = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState<Session | null>(() => (DEMO ? { token: 'demo', user: demoUser } : null))
+  const [loading, setLoading] = useState(!DEMO)
   const [notice, setNotice] = useState('')
 
-  const current = useRef<Session | null>(null)
-  current.current = session
+  const current = useRef<Session | null>(session)
+  useEffect(() => { current.current = session }, [session])
 
   const signOut = useCallback(async () => {
     const uid = current.current?.user.id
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    if (DEMO) { setSession({ token: 'demo', user: demoUser }); setLoading(false); return }
+    if (DEMO) return
     loadSession().then(s => { setSession(s); setLoading(false) })
   }, [])
 

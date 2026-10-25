@@ -48,7 +48,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   const ready = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const user = useRef(userId)
-  user.current = userId
+  useEffect(() => { user.current = userId }, [userId])
 
   const persist = useCallback(async (uid: number | string, list: Note[]) => {
     const ok = await saveNotes(uid, list)
@@ -65,10 +65,6 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     ready.current = false
     live.current = []
-    setNotes([])
-    setLoaded(false)
-    setLoadFailed(false)
-    setStatus('saved')
     if (userId === undefined) return
     let current = true
     loadNotes(userId).then(result => {
@@ -79,7 +75,14 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
       setLoadFailed(!result.ok)
       setLoaded(true)
     })
-    return () => { current = false; flush() }
+    return () => {
+      current = false
+      flush()
+      setNotes([])
+      setLoaded(false)
+      setLoadFailed(false)
+      setStatus('saved')
+    }
   }, [userId, flush, attempt])
 
   useEffect(() => {

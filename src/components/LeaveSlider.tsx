@@ -1,13 +1,13 @@
 import { ComponentRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Keyboard, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Animated, Keyboard, LayoutChangeEvent, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
+import { useAnimatedValue, useLatest, useOnChange } from '../hooks'
 import { longDate, MONTHS, parseKey } from '../dates'
 import { noCourtSelected } from '../hearings'
 import { leaveForEntry, leavesOn, sameCourt } from '../leave'
 import { native, useReduceMotion } from '../motion'
 import { font, liftShadow, makeStyles, radius, theme } from '../theme'
 import { HearingEntry, JudgeLeave } from '../types'
-import { useAnimatedValue } from '../useAnimatedValue'
 import Icon from './Icon'
 import LeaveByDay from './LeaveByDay'
 import { CourtChips, LeaveRows, LeaveSearch } from './LeaveParts'
@@ -17,6 +17,41 @@ export const HANDLE_HEIGHT = 48
 
 const MIN_PANEL = 240
 const MAX_PANEL = 560
+
+const singleCourt = (selected: string[]) => {
+  const courts = noCourtSelected(selected) ? [] : selected.filter(Boolean)
+  return courts.length === 1 ? courts : []
+}
+
+const panelHeightOf = (zone: number) => Math.max(MIN_PANEL, Math.min(MAX_PANEL, Math.round(zone * 0.8)))
+
+interface PanInput {
+  limit: number
+  settle: (target: boolean, vy: number) => void
+  change: (open: boolean) => void
+}
+
+function createLeavePan(y: Animated.Value) {
+  const input: PanInput = { limit: 0, settle: () => undefined, change: () => undefined }
+  let start = 0
+
+  const responder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+    onPanResponderGrant: () => y.stopAnimation(v => { start = v }),
+    onPanResponderMove: (_, g) => y.setValue(Math.min(input.limit, Math.max(0, start + g.dy))),
+    onPanResponderRelease: (_, g) => {
+      const v = Math.min(input.limit, Math.max(0, start + g.dy))
+      const target = g.vy < -0.4 ? true : g.vy > 0.4 ? false : v < input.limit / 2
+      input.settle(target, g.vy)
+      input.change(target)
+    },
+  })
+
+  return {
+    responder,
+    sync: (next: PanInput) => { input.limit = next.limit; input.settle = next.settle; input.change = next.change },
+  }
+}
 
 interface Props {
   open: boolean
@@ -36,17 +71,16 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
   const s = useS()
   const reduce = useReduceMotion()
   const [zoneHeight, setZoneHeight] = useState(0)
-  const [chips, setChips] = useState<string[]>([])
+  const [chips, setChips] = useState<string[]>(() => (open ? singleCourt(selectedCourt) : []))
   // Day view search: judge name, court, district or reason
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
-  // The panel is only drawn once it has been put at its real closed position, so it never flashes open on reload
-  const [placed, setPlaced] = useState(false)
   // The day list is only built once the panel has been opened, so app start and reload stay light
   const [everOpened, setEverOpened] = useState(open)
-  useEffect(() => { if (open) setEverOpened(true) }, [open])
+  if (open && !everOpened) setEverOpened(true)
+  if (!open && query) setQuery('')
 
-  const panelHeight = Math.max(MIN_PANEL, Math.min(MAX_PANEL, Math.round(zoneHeight * 0.8)))
+  const panelHeight = panelHeightOf(zoneHeight)
 
   // On a phone the keyboard slides over the bottom of the screen, and this panel is anchored to the bottom,
   // so the search box ended up underneath it. While the keyboard is up, lift the panel above it and shrink it to fit.
@@ -64,52 +98,39 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
   const handleHeight = HANDLE_HEIGHT + bottomInset
   const closedY = panelHeight - handleHeight
   const y = useAnimatedValue(closedY)
-  const start = useRef(0)
-  const limit = useRef(closedY)
-  limit.current = closedY
+  const getLimit = useLatest(closedY)
+  const getOpen = useLatest(open)
 
   // The panel carries on at the speed the finger let go with, then comes to rest without bouncing past its end
   const settle = useCallback((target: boolean, vy = 0) => {
-    const to = target ? 0 : limit.current
+    const to = target ? 0 : getLimit()
     if (reduce) { y.setValue(to); return }
     Animated.spring(y, { toValue: to, velocity: vy * 1000, damping: 30, stiffness: 320, mass: 1, overshootClamping: true, useNativeDriver: native }).start()
-  }, [y, reduce])
+  }, [y, reduce, getLimit])
 
-  const settleRef = useRef(settle)
-  settleRef.current = settle
-  const changeRef = useRef(onOpenChange)
-  changeRef.current = onOpenChange
-
-  const openRef = useRef(open)
-  openRef.current = open
+  // The panel is only drawn once it has been put at its real closed position, so it never flashes open on reload
+  const placed = zoneHeight > 0
+  const onZoneLayout = (e: LayoutChangeEvent) => {
+    const height = e.nativeEvent.layout.height
+    y.setValue(getOpen() ? 0 : panelHeightOf(height) - handleHeight)
+    setZoneHeight(height)
+  }
 
   useEffect(() => {
     if (zoneHeight <= 0) return
-    y.setValue(openRef.current ? 0 : closedY)
-    setPlaced(true)
-  }, [closedY, zoneHeight, y])
+    y.setValue(getOpen() ? 0 : closedY)
+  }, [closedY, zoneHeight, y, getOpen])
 
   useEffect(() => { if (placed) settle(open) }, [open, settle, placed])
 
-  useEffect(() => { if (!open) setQuery('') }, [open])
+  useOnChange(open ? selectedCourt : null, courts => {
+    if (courts) setChips(singleCourt(courts))
+  })
 
+  const [pan] = useState(() => createLeavePan(y))
   useEffect(() => {
-    if (open) setChips(noCourtSelected(selectedCourt) ? [] : selectedCourt.filter(Boolean))
-  }, [open, selectedCourt])
-
-  const [pan] = useState(() =>
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderGrant: () => y.stopAnimation(v => { start.current = v }),
-      onPanResponderMove: (_, g) => y.setValue(Math.min(limit.current, Math.max(0, start.current + g.dy))),
-      onPanResponderRelease: (_, g) => {
-        const v = Math.min(limit.current, Math.max(0, start.current + g.dy))
-        const target = g.vy < -0.4 ? true : g.vy > 0.4 ? false : v < limit.current / 2
-        settleRef.current(target, g.vy)
-        changeRef.current(target)
-      },
-    }),
-  )
+    pan.sync({ limit: closedY, settle, change: onOpenChange })
+  })
 
   const daily = scope === 'day'
   const prefix = date.slice(0, 7)
@@ -145,15 +166,15 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
   const pick = (d: string) => onPickDate?.(d)
 
   return (
-    <View ref={zoneRef} collapsable={false} style={s.zone} pointerEvents="box-none" onLayout={e => setZoneHeight(e.nativeEvent.layout.height)}>
-      {zoneHeight > 0 && placed ? (
+    <View ref={zoneRef} collapsable={false} style={s.zone} pointerEvents="box-none" onLayout={onZoneLayout}>
+      {placed ? (
         <>
           <Animated.View pointerEvents={open ? 'auto' : 'none'} style={[s.scrim, { opacity: y.interpolate({ inputRange: [0, closedY], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
             <Pressable style={s.fill} onPress={() => onOpenChange(false)} accessibilityLabel="Close judges on leave" />
           </Animated.View>
 
           <Animated.View style={[s.panel, { height: shownHeight, bottom: lift, transform: [{ translateY: y }] }]}>
-            <View {...pan.panHandlers}>
+            <View {...pan.responder.panHandlers}>
               <Tappable
                 onPress={() => onOpenChange(!open)}
                 pressedScale={0.99}

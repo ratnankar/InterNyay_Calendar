@@ -10,11 +10,11 @@ import Icon from '../components/Icon'
 import IconButton from '../components/IconButton'
 import Reveal from '../components/Reveal'
 import Tappable from '../components/Tappable'
+import { useAnimatedValue } from '../hooks'
 import { useLayout } from '../layout'
 import { GoogleCancelled, googleAvailable, googleUnavailableReason } from '../googleAuth'
 import { native, useReduceMotion } from '../motion'
 import { cardShadow, font, makeStyles, radius, theme, useScheme, withAlpha } from '../theme'
-import { useAnimatedValue } from '../useAnimatedValue'
 
 type AccountType = 'ADVOCATE' | 'ASSOCIATE'
 

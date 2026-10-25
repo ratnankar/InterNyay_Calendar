@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Animated, StyleProp, ViewStyle } from 'react-native'
+import { useAnimatedValue } from '../hooks'
 import { duration, ease, native, useReduceMotion } from '../motion'
-import { useAnimatedValue } from '../useAnimatedValue'
 
 interface Props {
   open: boolean
@@ -14,11 +14,19 @@ interface Props {
 // The content is only mounted while it is open or still closing. Before and after the animation it has its natural
 // height (nothing is measured or clipped), so a list inside that grows later is never cut off, and a block that
 // starts open shows at its full size on the first frame.
+interface Change {
+  open: boolean
+  reduce: boolean
+  wasMounted: boolean
+  wasFixed: boolean
+}
+
 export default function Expand({ open, children, style }: Props) {
   const reduce = useReduceMotion()
   const [mounted, setMounted] = useState(open)
   // true only while the height is being animated
   const [fixed, setFixed] = useState(false)
+  const [change, setChange] = useState<Change | null>(null)
   const height = useAnimatedValue(0)
   const fade = useAnimatedValue(open ? 1 : 0)
   const measured = useRef(0)
@@ -26,7 +34,7 @@ export default function Expand({ open, children, style }: Props) {
   const phase = useRef<'idle' | 'opening' | 'closing'>('idle')
   const run = useRef<Animated.CompositeAnimation | null>(null)
 
-  const animate = (to: number, show: boolean, ms: number = duration.base) => {
+  const animate = useCallback((to: number, show: boolean, ms: number = duration.base) => {
     run.current?.stop()
     target.current = to
     run.current = Animated.parallel([
@@ -39,43 +47,46 @@ export default function Expand({ open, children, style }: Props) {
       setFixed(false)
       if (!show) setMounted(false)
     })
+  }, [height, fade])
+
+  if (!change || change.open !== open) {
+    setChange({ open, reduce, wasMounted: mounted, wasFixed: fixed })
+    if (open) {
+      setMounted(true)
+      setFixed(!reduce)
+    } else if (mounted) {
+      setFixed(!reduce)
+      if (reduce) setMounted(false)
+    }
   }
 
   useEffect(() => {
-    if (open) {
-      if (reduce) {
+    if (!change) return
+    if (change.open) {
+      if (change.reduce) {
         fade.setValue(1)
         phase.current = 'idle'
-        setFixed(false)
-        setMounted(true)
         return
       }
       phase.current = 'opening'
       target.current = -1
-      if (!mounted) {
+      if (!change.wasMounted) {
         // Starts closed; onLayout below measures the content and runs the animation
         height.setValue(0)
         fade.setValue(0)
-        setFixed(true)
-        setMounted(true)
-      } else {
-        setFixed(true)
-        if (measured.current > 0) animate(measured.current, true)
+      } else if (measured.current > 0) {
+        animate(measured.current, true)
       }
-    } else if (mounted) {
-      if (reduce) {
+    } else if (change.wasMounted) {
+      if (change.reduce) {
         phase.current = 'idle'
-        setFixed(false)
-        setMounted(false)
         return
       }
       phase.current = 'closing'
-      if (!fixed) height.setValue(measured.current)
-      setFixed(true)
+      if (!change.wasFixed) height.setValue(measured.current)
       animate(0, false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [change, animate, height, fade])
 
   useEffect(() => () => run.current?.stop(), [])
 

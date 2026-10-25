@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { FlatList, Modal, Platform, StyleSheet, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { Text, TextInput } from '../ui'
@@ -31,25 +31,35 @@ const haystack = (e: HearingEntry) =>
     ...(e.kind === 'misc' ? [e.applicationType, e.applicationStatus, e.applicationOutcome, 'misc miscellaneous application', e.notes,
       ...e.applicationHearings.map(h => h.note), ...e.applicationDocs.map(d => d.name)] : [])].join(' ').toLowerCase()
 
+interface IndexRow { e: HearingEntry; h: string }
+const indexes = new WeakMap<HearingEntry[], IndexRow[]>()
+
+function indexOf(entries: HearingEntry[]) {
+  let rows = indexes.get(entries)
+  if (!rows) {
+    rows = entries.map(e => ({ e, h: haystack(e) }))
+    indexes.set(entries, rows)
+  }
+  return rows
+}
+
 export default function SearchScreen({ visible, token, entries, judgeLeaves, colourOf, onNote, onClose }: Props) {
   const s = useS()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState<HearingEntry | null>(null)
   const [, setListNosLoaded] = useState(0)
 
-  useEffect(() => { if (!visible) { setQ(''); setOpen(null) } }, [visible])
+  if (!visible && (q || open)) { setQ(''); setOpen(null) }
 
   // The searchable text of every entry is built once per data load (on the first search), not on every keystroke,
   // and the list follows the typing a moment later so the keyboard never waits for it
-  const index = useRef<{ src: HearingEntry[]; rows: { e: HearingEntry; h: string }[] } | null>(null)
   const query = useDeferredValue(q)
 
   const results = useMemo(() => {
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
     if (!terms.length) return []
     const today = todayKey()
-    if (!index.current || index.current.src !== entries) index.current = { src: entries, rows: entries.map(e => ({ e, h: haystack(e) })) }
-    const hit = index.current.rows.filter(r => terms.every(t => r.h.includes(t))).map(r => r.e)
+    const hit = indexOf(entries).filter(r => terms.every(t => r.h.includes(t))).map(r => r.e)
 
     const upcoming = hit.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
     const past = hit.filter(e => e.date < today).sort((a, b) => b.date.localeCompare(a.date))
