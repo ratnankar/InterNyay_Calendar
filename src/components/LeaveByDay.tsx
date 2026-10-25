@@ -1,7 +1,7 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
-import { useOnChange } from '../hooks'
+import { useLatest, useOnChange } from '../hooks'
 import { addMonths, dateKey, dayLabel, inMonth, longDate, MONTHS, parseKey, relativeLabel, todayKey, WEEKDAY_LETTERS } from '../dates'
 import { leaveForEntry, leavesOn } from '../leave'
 import { animateLayout, useSlideIn } from '../motion'
@@ -58,30 +58,37 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
     [leaves, needle],
   )
 
+  // Keyed on the month, not the day: picking another day of the same month must not rebuild anything
+  const monthId = month.slice(0, 7)
   const keys = useMemo(() => {
-    const d = parseKey(month)
+    const d = parseKey(monthId + '-01')
     const count = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
     return Array.from({ length: count }, (_, i) => dateKey(new Date(d.getFullYear(), d.getMonth(), i + 1)))
-  }, [month])
+  }, [monthId])
 
-  const byDay = useMemo(() => {
-    const entriesOn = new Map<string, HearingEntry[]>()
-    entries.forEach(e => entriesOn.set(e.date, [...(entriesOn.get(e.date) || []), e]))
-    const out = new Map<string, LeaveItem[]>()
-    keys.forEach(k => {
-      const list = entriesOn.get(k) || []
-      const items = leavesOn(visibleLeaves, k)
-        .map(l => ({ leave: l, cases: list.filter(e => leaveForEntry([l], e)) }))
-        .sort((a, b) => b.cases.length - a.cases.length || (a.leave.court || '').localeCompare(b.leave.court || '') || a.leave.name.localeCompare(b.leave.name))
-      out.set(k, items)
-    })
+  const entriesOn = useMemo(() => {
+    const m = new Map<string, HearingEntry[]>()
+    entries.forEach(e => { const l = m.get(e.date); if (l) l.push(e); else m.set(e.date, [e]) })
+    return m
+  }, [entries])
+
+  // Cheap part, for the whole month: which judges are on leave each day (also drives the red dots)
+  const leavesByDay = useMemo(() => {
+    const out = new Map<string, JudgeLeave[]>()
+    keys.forEach(k => out.set(k, leavesOn(visibleLeaves, k)))
     return out
-  }, [keys, visibleLeaves, entries])
+  }, [keys, visibleLeaves])
 
-  const sections = useMemo(
-    () => keys.filter(k => (day ? k === day : true)).map(k => ({ key: k, items: byDay.get(k) || [] })).filter(sec => sec.items.length > 0),
-    [keys, byDay, day],
-  )
+  // Costly part (matching each leave to your hearings) runs only for the days actually shown
+  const sections = useMemo(() => {
+    const matched = (k: string): LeaveItem[] => {
+      const list = entriesOn.get(k) || []
+      return (leavesByDay.get(k) || [])
+        .map(l => ({ leave: l, cases: list.length ? list.filter(e => leaveForEntry([l], e)) : [] }))
+        .sort((a, b) => b.cases.length - a.cases.length || (a.leave.court || '').localeCompare(b.leave.court || '') || a.leave.name.localeCompare(b.leave.name))
+    }
+    return keys.filter(k => (day ? k === day : true)).map(k => ({ key: k, items: matched(k) })).filter(sec => sec.items.length > 0)
+  }, [keys, leavesByDay, entriesOn, day])
 
   useEffect(() => {
     if (!viewport) return
@@ -102,6 +109,10 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
   const moveTo = (key: string) => choose(key.startsWith(thisMonth) ? today : key)
 
   const clear = () => setAll(true)
+  const getDay = useLatest(day)
+  // Stable, so only the chip that was selected and the one now selected redraw on a pick
+  const getChoose = useLatest(choose)
+  const onChip = useCallback((k: string) => { if (k === getDay()) setAll(true); else { setAll(false); getChoose()(k) } }, [getChoose, getDay])
 
   const stepMonth = (n: number) => { setPickerOpen(false); moveTo(addMonths(month, n)) }
   const pickMonth = (m: number) => { setPickerOpen(false); moveTo(inMonth(month, pickYear, m)) }
@@ -119,7 +130,7 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
   }, [archive, archiveCutoff, needle])
   const archiveTotal = groups.reduce((n, [, list]) => n + list.length, 0)
 
-  const shown = day ? (byDay.get(day) || []).length : visibleLeaves.length
+  const shown = day ? (leavesByDay.get(day) || []).length : visibleLeaves.length
 
   const header = (
     <View style={s.head}>
@@ -270,27 +281,9 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
         >
           <Text style={[s.allText, day === null && s.chipOnText]}>All days</Text>
         </Tappable>
-        {keys.map(k => {
-          const d = parseKey(k)
-          const on = k === day
-          const has = (byDay.get(k) || []).length > 0
-          return (
-            <Tappable
-              key={k}
-              onPress={() => { if (on) setAll(true); else pickDay(k) }}
-              pressedScale={0.95}
-              accessibilityRole="button"
-              accessibilityState={{ selected: on }}
-              selected={on}
-              accessibilityLabel={`${longDate(k)}${has ? ', judges on leave' : ''}`}
-              style={[s.chip, on && s.chipOn]}
-            >
-              <Text style={[s.letter, on && s.chipOnText]}>{WEEKDAY_LETTERS[d.getDay()]}</Text>
-              <Text style={[s.number, on && s.chipOnText]}>{d.getDate()}</Text>
-              <View style={[s.dot, has && s.dotOn]} />
-            </Tappable>
-          )
-        })}
+        {keys.map(k => (
+          <DayChip key={k} k={k} on={k === day} has={(leavesByDay.get(k) || []).length > 0} onPick={onChip} />
+        ))}
       </ScrollView>
 
       <ScrollView style={s.list} contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
@@ -325,6 +318,26 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
     </Reveal>
   )
 }
+
+const DayChip = memo(function DayChip({ k, on, has, onPick }: { k: string; on: boolean; has: boolean; onPick: (k: string) => void }) {
+  const s = useS()
+  const d = parseKey(k)
+  return (
+    <Tappable
+      onPress={() => onPick(k)}
+      pressedScale={0.95}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      selected={on}
+      accessibilityLabel={`${longDate(k)}${has ? ', judges on leave' : ''}`}
+      style={[s.chip, on && s.chipOn]}
+    >
+      <Text style={[s.letter, on && s.chipOnText]}>{WEEKDAY_LETTERS[d.getDay()]}</Text>
+      <Text style={[s.number, on && s.chipOnText]}>{d.getDate()}</Text>
+      <View style={[s.dot, has && s.dotOn]} />
+    </Tappable>
+  )
+})
 
 const useS = makeStyles(() => StyleSheet.create({
   fill: { flex: 1, minWidth: 0 },

@@ -59,7 +59,6 @@ interface Props {
   date: string
   scope?: 'month' | 'day'
   bottomInset?: number
-  onPickDate?: (date: string) => void
   leaves: JudgeLeave[]
   entries: HearingEntry[]
   courts: string[]
@@ -67,8 +66,18 @@ interface Props {
   colourOf: (court: string) => string
 }
 
-export default function LeaveSlider({ open, onOpenChange, date, scope = 'month', bottomInset = 0, onPickDate, leaves, entries, courts, selectedCourt, colourOf }: Props) {
+export default function LeaveSlider({ open, onOpenChange, date: dateProp, scope = 'month', bottomInset = 0, leaves, entries: entriesProp, courts, selectedCourt, colourOf }: Props) {
   const s = useS()
+  // The month panel keeps its own date: picking a day or month here must not move the main hearing calendar.
+  // It follows the calendar when the calendar itself moves.
+  const [viewDate, setViewDate] = useState(dateProp)
+  useOnChange(dateProp, setViewDate)
+  const date = scope === 'day' ? dateProp : viewDate
+  const monthId = date.slice(0, 7)
+  const entries = useMemo(
+    () => (scope === 'day' ? entriesProp : entriesProp.filter(e => e.date.startsWith(monthId))),
+    [entriesProp, scope, monthId],
+  )
   const reduce = useReduceMotion()
   const [zoneHeight, setZoneHeight] = useState(0)
   const [chips, setChips] = useState<string[]>(() => (open ? singleCourt(selectedCourt) : []))
@@ -136,13 +145,15 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
   const prefix = date.slice(0, 7)
   const label = daily ? longDate(date) : `${MONTHS[parseKey(date).getMonth()]} ${parseKey(date).getFullYear()}`
 
+  // The month list only depends on the month; a day pick inside it must not rebuild the lists below
+  const stamp = daily ? date : prefix
   const monthLeaves = useMemo(
     () => (daily
-      ? leavesOn(leaves, date).sort((a, b) => (a.court || '').localeCompare(b.court || '') || a.name.localeCompare(b.name))
+      ? leavesOn(leaves, stamp).sort((a, b) => (a.court || '').localeCompare(b.court || '') || a.name.localeCompare(b.name))
       : leaves
         .filter(l => l.leaveFrom <= `${prefix}-31` && (l.leaveTo || l.leaveFrom) >= `${prefix}-01`)
         .sort((a, b) => a.leaveFrom.localeCompare(b.leaveFrom) || a.name.localeCompare(b.name))),
-    [leaves, prefix, date, daily],
+    [leaves, prefix, stamp, daily],
   )
 
   const courtLeaves = useMemo(
@@ -163,7 +174,7 @@ export default function LeaveSlider({ open, onOpenChange, date, scope = 'month',
       .sort((a, b) => b.cases.length - a.cases.length)
   }, [courtLeaves, entries, daily, needle])
 
-  const pick = (d: string) => onPickDate?.(d)
+  const pick = setViewDate
 
   return (
     <View ref={zoneRef} collapsable={false} style={s.zone} pointerEvents="box-none" onLayout={onZoneLayout}>

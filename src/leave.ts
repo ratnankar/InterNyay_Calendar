@@ -11,8 +11,17 @@ export function leaveNotice(leave: HearingLeave): string {
 }
 
 const TITLES = new Set(['hon', 'honble', 'honourable', 'justice', 'judge', 'mr', 'ms', 'mrs', 'dr', 'shri', 'smt', 'sh', 'ld', 'sri'])
-const words = (name: string): string[] =>
-  name.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w && !TITLES.has(w))
+// Splitting a name is the costly part of matching and the same few names are compared thousands of times
+// (every leave against every hearing, for every day), so each name is split only once
+const wordsCache = new Map<string, string[]>()
+const words = (name: string): string[] => {
+  let w = wordsCache.get(name)
+  if (!w) {
+    w = name.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(x => x && !TITLES.has(x))
+    wordsCache.set(name, w)
+  }
+  return w
+}
 
 function sameJudge(a?: string | null, b?: string | null): boolean {
   if (!a || !b) return false
@@ -26,7 +35,16 @@ function sameJudge(a?: string | null, b?: string | null): boolean {
   return short.slice(0, -1).every(w => long.slice(0, -1).some(l => l[0] === w[0]))
 }
 
-const norm = (s?: string | null) => (s || '').toLowerCase().replace(/district court|court|complex/g, '').replace(/[^a-z]/g, '')
+const normCache = new Map<string, string>()
+const norm = (s?: string | null): string => {
+  const raw = s || ''
+  let n = normCache.get(raw)
+  if (n === undefined) {
+    n = raw.toLowerCase().replace(/district court|court|complex/g, '').replace(/[^a-z]/g, '')
+    normCache.set(raw, n)
+  }
+  return n
+}
 
 export function sameCourt(a?: string | null, b?: string | null): boolean {
   const x = norm(a)
@@ -34,7 +52,7 @@ export function sameCourt(a?: string | null, b?: string | null): boolean {
   return !x || !y || x === y || x.includes(y) || y.includes(x)
 }
 
-export const covers = (l: JudgeLeave, date: string): boolean => date >= l.leaveFrom && date <= (l.leaveTo || l.leaveFrom)
+const covers = (l: JudgeLeave, date: string): boolean => date >= l.leaveFrom && date <= (l.leaveTo || l.leaveFrom)
 
 export const leavesOn = (leaves: JudgeLeave[], date: string): JudgeLeave[] => leaves.filter(l => covers(l, date))
 

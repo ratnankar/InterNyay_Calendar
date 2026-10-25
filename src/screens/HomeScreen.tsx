@@ -299,8 +299,8 @@ export default function HomeScreen({ token }: { token: string }) {
               <>
                 <View style={s.handleSpace} />
                 <LeaveSlider
-                  open={leaveOpen} onOpenChange={setLeaveOpen} date={anchor} onPickDate={setAnchor}
-                  leaves={judgeLeaves} entries={monthEntries} courts={sortedCourts}
+                  open={leaveOpen} onOpenChange={setLeaveOpen} date={anchor}
+                  leaves={judgeLeaves} entries={entries} courts={sortedCourts}
                   selectedCourt={court} colourOf={colourOf}
                 />
               </>

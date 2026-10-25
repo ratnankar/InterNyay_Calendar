@@ -52,7 +52,7 @@ interface PushResult { notes: Note[]; failed: boolean }
 
 // Send every changed note and every deletion. The server answers with what it stores; if that is newer
 // (another phone edited it later), the phone takes the server's copy
-export async function push(token: string, list: Note[], isCurrent: () => boolean): Promise<PushResult> {
+async function push(token: string, list: Note[], isCurrent: () => boolean): Promise<PushResult> {
   let notes = list
   let failed = false
   for (const n of list) {

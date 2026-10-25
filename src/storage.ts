@@ -33,8 +33,6 @@ export async function loadSession(): Promise<Session | null> {
 export const saveSession = (s: Session) => write(SESSION, JSON.stringify({ ...s, user: { ...s.user, profilePicture: undefined } }))
 export const clearSession = () => remove(SESSION)
 
-export type { CourtColours }
-
 export async function loadColours(): Promise<CourtColours> {
   const raw = await read(COLOURS)
   if (!raw) return {}
