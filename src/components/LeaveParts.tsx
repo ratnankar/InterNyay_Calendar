@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { Text, TextInput } from '../ui'
 import { leaveRange } from '../leave'
@@ -90,23 +91,29 @@ export function LeaveSearch({ value, onChange, placeholder, label }: SearchProps
   )
 }
 
-export function LeaveRows({ items }: { items: LeaveItem[] }) {
+const LeaveRow = memo(function LeaveRow({ leave: l, cases, index, instant }: LeaveItem & { index: number; instant: boolean }) {
   const s = useS()
+  const titles = [...new Set(cases.map(itemLabel))]
+  const where = [l.court, l.district && !(l.court || '').includes(l.district) ? l.district : ''].filter(Boolean).join(', ')
+  return (
+    <Reveal delay={stagger(index)} skip={instant}>
+      <View style={s.row}>
+        <Text style={s.name}>{l.name}</Text>
+        <Text style={s.sub}>{[where, leaveRange(l), l.reason].filter(Boolean).join(' · ')}</Text>
+        {titles.length ? <Text style={s.cases}>Your case{titles.length === 1 ? '' : 's'}: {titles.join(', ')}</Text> : null}
+      </View>
+    </Reveal>
+  )
+})
+
+// instant: rows appear at once without the slide-in (used when the list is replaced by another day, where
+// animating dozens of rows is what made changing the date feel slow)
+export function LeaveRows({ items, instant = false }: { items: LeaveItem[]; instant?: boolean }) {
   return (
     <>
-      {items.map(({ leave: l, cases }, index) => {
-        const titles = [...new Set(cases.map(itemLabel))]
-        const where = [l.court, l.district && !(l.court || '').includes(l.district) ? l.district : ''].filter(Boolean).join(', ')
-        return (
-          <Reveal key={`${l.name}-${l.court}-${l.leaveFrom}-${l.leaveTo}`} delay={stagger(index)}>
-            <View style={s.row}>
-              <Text style={s.name}>{l.name}</Text>
-              <Text style={s.sub}>{[where, leaveRange(l), l.reason].filter(Boolean).join(' · ')}</Text>
-              {titles.length ? <Text style={s.cases}>Your case{titles.length === 1 ? '' : 's'}: {titles.join(', ')}</Text> : null}
-            </View>
-          </Reveal>
-        )
-      })}
+      {items.map(({ leave: l, cases }, index) => (
+        <LeaveRow key={`${l.name}-${l.court}-${l.leaveFrom}-${l.leaveTo}`} leave={l} cases={cases} index={index} instant={instant} />
+      ))}
     </>
   )
 }

@@ -45,6 +45,8 @@ function createDrawerPan(t: Animated.Value, setMoving: (moving: boolean) => void
 
   const responder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) => g.dx < -10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+    // Claimed before the rows and the list inside the panel can take the touch, so a swipe left always closes it
+    onMoveShouldSetPanResponderCapture: (_, g) => g.dx < -10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
     onPanResponderGrant: (_, g) => {
       grabX = g.dx
       setMoving(true)
@@ -78,6 +80,7 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
 
   const getReduced = useLatest(reduce)
   const getOnClosed = useLatest(onClosed)
+  const getOnClose = useLatest(onClose)
 
   // The slide-in must not start until the Modal has actually mounted and laid out its content.
   // Starting it in the same tick as setMounted(true) means the first frames are spent creating the
@@ -88,7 +91,7 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
 
   // Moves the panel to `to` (1 = open, 0 = closed) from wherever it is now. The time is scaled by the distance
   // left, so closing a panel that was already dragged halfway does not take as long as closing a full one.
-  const slideTo = useCallback((to: 0 | 1, from?: number) => {
+  const slideTo = useCallback((to: 0 | 1, from?: number, byUser = false) => {
     const go = (start: number) => {
       const full = to === 1 ? OPEN_MS : CLOSE_MS
       const ms = getReduced() ? 0 : Math.round(full * Math.max(0.35, Math.abs(to - start)))
@@ -102,12 +105,14 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
         if (to === 1) { setMoving(false); return }
         laidOut.current = false
         setMounted(false)
+        // A tap or swipe closed the menu from here: tell the screen only now that it is gone
+        if (byUser) getOnClose()()
         getOnClosed()?.()
       })
     }
     if (from !== undefined) go(from)
     else t.stopAnimation(go)
-  }, [t, getReduced, getOnClosed])
+  }, [t, getReduced, getOnClosed, getOnClose])
 
   useOnChange(visible, shown => {
     setMoving(true)
@@ -129,20 +134,28 @@ export default function Drawer({ visible, onClose, onClosed, children }: Props) 
     if (getVisible()) slideTo(1, 0)
   }, [slideTo, getVisible])
 
+  // Tap on the dimmed area, swipe left or the back button: the menu starts sliding out on this very frame, without
+  // waiting for the screen behind it to re-render (that render is what made closing feel late), and the screen
+  // is told once the menu is gone.
+  const dismiss = useCallback(() => {
+    setMoving(true)
+    slideTo(0, undefined, true)
+  }, [slideTo])
+
   const slide = useMemo(() => t.interpolate({ inputRange: [0, 1], outputRange: [-panel - SHADOW_GAP, 0] }), [t, panel])
 
   // Swipe the menu to the left to close it, from the panel or from the dimmed area beside it. It follows the
   // finger from the point where the swipe was recognised (so it does not jump), and then either closes or springs back.
   const [pan] = useState(() => createDrawerPan(t, setMoving))
   useEffect(() => {
-    pan.sync({ panel, reduced: reduce, close: onClose })
+    pan.sync({ panel, reduced: reduce, close: dismiss })
   })
 
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={dismiss} statusBarTranslucent>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <Animated.View {...pan.responder.panHandlers} style={[s.scrim, { opacity: t }]}>
-          <Pressable style={s.fill} onPress={onClose} accessibilityLabel="Close menu" />
+          <Pressable style={s.fill} onPress={dismiss} accessibilityLabel="Close menu" />
         </Animated.View>
         <Animated.View
           {...pan.responder.panHandlers}

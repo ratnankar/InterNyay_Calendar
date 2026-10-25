@@ -193,7 +193,7 @@ export default function NotepadSheet({ visible, scope, startNew, onClose }: Prop
           </ScrollView>
         </KeyboardAvoidingView>
       ) : (
-        <SheetScroll keyboardShouldPersistTaps="handled">
+        <SheetScroll dragToClose={false} keyboardShouldPersistTaps="handled">
           {loadFailed ? (
             <View style={s.failBox}>
               <Text style={s.failTitle}>Your notes could not be opened</Text>

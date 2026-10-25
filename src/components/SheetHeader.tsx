@@ -1,4 +1,6 @@
+import { useContext } from 'react'
 import { StyleSheet, View } from 'react-native'
+import { SheetDragContext } from './sheetDrag'
 import { Text } from '../ui'
 import { font, makeStyles, radius, theme } from '../theme'
 import { useLayout } from '../layout'
@@ -16,8 +18,9 @@ interface Props {
 export default function SheetHeader({ title, subtitle, badge, onClose, onPrev, onNext }: Props) {
   const s = useS()
   const { dialog } = useLayout()
+  const drag = useContext(SheetDragContext)
   return (
-    <View style={[s.wrap, dialog && s.wrapDialog]}>
+    <View style={[s.wrap, dialog && s.wrapDialog]} {...drag?.header}>
       {dialog ? null : <View style={s.grabber} />}
       <View style={s.row}>
         <View style={s.text}>

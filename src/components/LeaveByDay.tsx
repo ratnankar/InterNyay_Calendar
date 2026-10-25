@@ -23,6 +23,7 @@ interface Props {
   onPickDate: (date: string) => void
 }
 
+const FIRST_ROWS = 20
 const CHIP = 44
 const GAP = 4
 
@@ -80,6 +81,18 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
   }, [keys, visibleLeaves])
 
   // Costly part (matching each leave to your hearings) runs only for the days actually shown
+  // A busy day has dozens of judges. The first rows draw at once and the rest follow a moment later, so
+  // changing the date answers immediately instead of waiting for every row to be built
+  const [full, setFull] = useState(false)
+  const listKey = `${day}|${needle}|${all}`
+  const [seenKey, setSeenKey] = useState(listKey)
+  if (seenKey !== listKey) { setSeenKey(listKey); setFull(false) }
+  useEffect(() => {
+    if (full) return
+    const h = setTimeout(() => setFull(true), 120)
+    return () => clearTimeout(h)
+  }, [full, listKey])
+
   const sections = useMemo(() => {
     const matched = (k: string): LeaveItem[] => {
       const list = entriesOn.get(k) || []
@@ -240,7 +253,7 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
                 </View>
                 <Expand open={open}>
                   <>
-                    <LeaveRows items={list.slice(0, cap).map(leave => ({ leave, cases: [] }))} />
+                    <LeaveRows instant items={list.slice(0, cap).map(leave => ({ leave, cases: [] }))} />
                     {list.length > cap ? (
                       <Tappable onPress={() => { animateLayout(); setLimits(v => ({ ...v, [k]: cap + 40 })) }} pressedScale={0.97} accessibilityRole="button" style={s.more}>
                         <Text style={s.pillText}>Show more ({list.length - cap})</Text>
@@ -256,6 +269,7 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
     )
   }
 
+  let budget = FIRST_ROWS
   return (
     <Reveal key="days" variant="fade" style={s.fill}>
       {header}
@@ -301,6 +315,9 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
         ) : null}
         {sections.map(sec => {
           const rel = relativeLabel(sec.key)
+          const part = full ? sec.items : sec.items.slice(0, Math.max(0, budget))
+          budget -= part.length
+          if (!part.length) return null
           return (
             <View key={sec.key} style={s.section}>
               <View style={s.dayHead}>
@@ -309,7 +326,7 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
                 <View style={s.fill} />
                 <View style={s.count}><Text style={s.countText}>{sec.items.length}</Text></View>
               </View>
-              <LeaveRows items={sec.items} />
+              <LeaveRows instant items={part} />
             </View>
           )
         })}
