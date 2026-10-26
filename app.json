@@ -36,12 +36,12 @@
     "plugins": [
       "expo-secure-store"
     ],
+    "description": "View your court hearings on a month calendar.",
     "extra": {
       "eas": {
-        "projectId": "a241de9c-b291-4a48-be81-ac9ae0486bc0"
+        "projectId": "3eedeb09-76f4-4123-b381-d8d98b5efc38"
       }
     },
-    "description": "View your court hearings on a month calendar.",
-    "owner": "ratnankar"
+    "owner": "internyay"
   }
 }
