@@ -1,7 +1,7 @@
 import { useContext, useMemo, useRef, useState } from 'react'
 import { NativeScrollEvent, NativeSyntheticEvent, PanResponder, Platform, ScrollView, ScrollViewInstance, ScrollViewProps, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useLatest } from '../hooks'
+import { useHandScroll, useLatest } from '../hooks'
 import { SheetDragContext } from './sheetDrag'
 
 interface Props extends ScrollViewProps {
@@ -37,17 +37,14 @@ export default function SheetScroll({ children, dragToClose = true, onScroll, sc
 
   // Upward drag from the top while native scrolling is off: scroll by hand. The handlers stay attached all the time (they only
   // claim a drag while the list is locked) so a drag that started at the top keeps being followed after the list has moved off it
-  const hand = useMemo(() => {
-    let base = 0
-    let from = 0
-    const to = (g: { dy: number }) => Math.max(0, from - (g.dy - base))
-    return PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, g) => getLock() && g.dy < -CLAIM && -g.dy > Math.abs(g.dx) * 1.5,
-      onPanResponderGrant: (_, g) => { base = g.dy; from = offset.current },
-      onPanResponderMove: (_, g) => { list.current?.scrollTo({ y: to(g), animated: false }) },
-      onPanResponderRelease: (_, g) => { list.current?.scrollTo({ y: Math.max(0, to(g) - g.vy * GLIDE_MS), animated: true }) },
-    })
-  }, [getLock])
+  const { begin, target, scrollTo } = useHandScroll(list, offset)
+
+  const hand = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, g) => getLock() && g.dy < -CLAIM && -g.dy > Math.abs(g.dx) * 1.5,
+    onPanResponderGrant: (_, g) => begin(g.dy),
+    onPanResponderMove: (_, g) => scrollTo(target(g.dy), false),
+    onPanResponderRelease: (_, g) => scrollTo(Math.max(0, target(g.dy) - g.vy * GLIDE_MS), true),
+  }), [getLock, begin, target, scrollTo])
 
   return (
     <View style={s.fill} {...(active ? drag.body : null)}>
