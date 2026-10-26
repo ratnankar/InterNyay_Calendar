@@ -1,5 +1,5 @@
 import { useContext, useMemo, useRef, useState } from 'react'
-import { NativeScrollEvent, NativeSyntheticEvent, PanResponder, Platform, ScrollView, ScrollViewProps, StyleSheet, View } from 'react-native'
+import { NativeScrollEvent, NativeSyntheticEvent, PanResponder, Platform, ScrollView, ScrollViewInstance, ScrollViewProps, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLatest } from '../hooks'
 import { SheetDragContext } from './sheetDrag'
@@ -21,7 +21,7 @@ export default function SheetScroll({ children, dragToClose = true, onScroll, sc
   const insets = useSafeAreaInsets()
   const drag = useContext(SheetDragContext)
   const active = dragToClose && drag
-  const list = useRef<ScrollView>(null)
+  const list = useRef<ScrollViewInstance>(null)
   const offset = useRef(0)
   const [atTop, setAtTop] = useState(true)
   const lock = !!active && HAND_SCROLL && atTop
