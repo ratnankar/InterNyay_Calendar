@@ -11,6 +11,29 @@ export interface LoginResponse {
   user: User
 }
 
+export interface CaseParty {
+  id?: number | null
+  name: string
+  fatherName?: string | null
+  address?: string | null
+  phone?: string | null
+  subType?: string | null
+}
+
+export interface ClientRef {
+  id: number
+  name?: string | null
+}
+
+export interface ChequeDetails {
+  no: string
+  date: string
+  memoDate: string
+  reason: string
+  claim: string
+  noticeDate: string
+}
+
 export interface CaseItem {
   id: number
   title: string
@@ -33,6 +56,25 @@ export interface CaseItem {
   clientSubTypes?: Record<string, string> | null
   building?: string | null
   floor?: string | null
+  caseStage?: string | null
+  actsSections?: string | null
+  registrationDate?: string | null
+  firstHearingDate?: string | null
+  decisionDate?: string | null
+  disposalNature?: string | null
+  firNo?: string | null
+  firSection?: string | null
+  policeStation?: string | null
+  description?: string | null
+  chequeNo?: string | null
+  chequeDate?: string | null
+  memoDate?: string | null
+  bouncingReason?: string | null
+  claimAmount?: number | string | null
+  noticeDate?: string | null
+  additionalClients?: ClientRef[] | null
+  nonClients?: CaseParty[] | null
+  opponents?: CaseParty[] | null
 }
 
 export interface HearingRow {
@@ -148,6 +190,22 @@ export interface HearingEntry {
   clientLabel: string
   caseNext: string
   caseHistory: HistoryItem[]
+
+  caseStage: string
+  actsSections: string
+  registrationDate: string
+  firstHearingDate: string
+  lastHearingDate: string
+  decisionDate: string
+  disposalNature: string
+  firNo: string
+  firSection: string
+  policeStation: string
+  description: string
+  clients: string[]
+  nonClients: string[]
+  opponents: CaseParty[]
+  cheque: ChequeDetails
 }
 
 export interface HistoryItem {

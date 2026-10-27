@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
 import { HearingEntry, HearingLeave } from '../types'
-import { applicationFields, badgesOf, hearingFields, roomOf } from '../hearings'
+import { applicationFields, badgesOf, chequeFields, hearingFields, roomOf } from '../hearings'
 import { leaveNotice } from '../leave'
 import { listNoOf } from '../listNo'
 import { useNotes } from '../NotesContext'
@@ -15,6 +15,8 @@ import Icon from './Icon'
 import Tappable from './Tappable'
 
 type Value = string | number | null | undefined
+
+const CHEQUE_TITLE = 'Cheque Dishonour Details (Sec 138 NI Act)'
 
 function Line({ label, value }: { label: string; value: Value }) {
   const s = useS()
@@ -109,6 +111,7 @@ function HearingCard({ entry: e, colour, leave, highlighted, hideCourt, onNote }
           <View style={s.full}>
             {badges.length ? <View style={s.badges}>{badges.map(t => <View key={t} style={s.badge}><Text style={s.badgeText}>{t}</Text></View>)}</View> : null}
             <DetailTable fields={misc ? applicationFields(e) : hearingFields(e, { judge, listNo })} />
+            {misc ? null : <DetailTable title={CHEQUE_TITLE} fields={chequeFields(e)} />}
             <HistoryPanel
               items={misc ? e.applicationHearings : e.caseHistory}
               next={misc ? e.applicationNext : e.caseNext}

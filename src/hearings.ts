@@ -1,4 +1,4 @@
-import { CaseItem, HearingEntry, HearingRow, HistoryItem, MiscApplication, MiscDocItem, MiscDocument } from './types'
+import { CaseItem, CaseParty, ChequeDetails, HearingEntry, HearingRow, HistoryItem, MiscApplication, MiscDocItem, MiscDocument } from './types'
 import { fullDate, todayKey } from './dates'
 
 const isClosed = (s?: string | null) => /^(decided|withdrawn)$/i.test((s || '').trim())
@@ -36,18 +36,65 @@ const NO_APPLICATION = {
   applicationNext: '', applicationHearings: [], applicationDocs: [],
 }
 
-function clientLabelOf(c?: CaseItem): string {
-  if (!c?.clientName) return ''
-  const role = c.clientId != null ? c.clientSubTypes?.[String(c.clientId)] : ''
-  return role ? `${c.clientName} (${role})` : c.clientName
+const roleOf = (c: CaseItem, id?: number | null) => (id != null ? c.clientSubTypes?.[String(id)] || '' : '')
+
+function clientLabelsOf(c?: CaseItem): string[] {
+  if (!c) return []
+  const people = [
+    ...(c.clientName ? [{ id: c.clientId, name: c.clientName }] : []),
+    ...(c.additionalClients || []).filter(x => x?.name).map(x => ({ id: x.id, name: x.name as string })),
+  ]
+  return people.map(p => {
+    const role = roleOf(c, p.id)
+    return role ? `${p.name} (${role})` : p.name
+  })
 }
+
+const opponentsOf = (c?: CaseItem): CaseParty[] => {
+  const list = (c?.opponents || []).filter(o => o?.name)
+  return list.length || !c?.opposingParty ? list : [{ name: c.opposingParty }]
+}
+
+const nonClientsOf = (c?: CaseItem): string[] =>
+  (c?.nonClients || []).filter(n => n?.name).map(n => (n.subType ? `${n.name} (${n.subType})` : n.name))
+
+const money = (v?: number | string | null) => (v == null || v === '' ? '' : `₹${(Number(v) || 0).toLocaleString('en-IN')}`)
+
+const chequeOf = (c?: CaseItem): ChequeDetails => ({
+  no: c?.chequeNo || '',
+  date: c?.chequeDate || '',
+  memoDate: c?.memoDate || '',
+  reason: c?.bouncingReason || '',
+  claim: money(c?.claimAmount),
+  noticeDate: c?.noticeDate || '',
+})
 
 const caseSide = (c?: CaseItem) => ({
   caseStatus: c?.status || '',
   reliefSought: c?.reliefSought || '',
   caseFilingDate: c?.filingDate || '',
-  clientLabel: clientLabelOf(c),
+  clientLabel: clientLabelsOf(c).join(', '),
 })
+
+const caseExtra = (c?: CaseItem) => ({
+  caseStage: c?.caseStage || '',
+  actsSections: c?.actsSections || '',
+  registrationDate: c?.registrationDate || '',
+  firstHearingDate: c?.firstHearingDate || '',
+  lastHearingDate: '',
+  decisionDate: c?.decisionDate || '',
+  disposalNature: c?.disposalNature || '',
+  firNo: c?.firNo || '',
+  firSection: c?.firSection || '',
+  policeStation: c?.policeStation || '',
+  description: c?.description || '',
+  clients: clientLabelsOf(c),
+  nonClients: nonClientsOf(c),
+  opponents: opponentsOf(c),
+  cheque: chequeOf(c),
+})
+
+const partyLine = (p: CaseParty) => [p.name, p.fatherName && `Father: ${p.fatherName}`, p.phone, p.address].filter(Boolean).join(' · ')
 
 function docLines(a: MiscApplication): MiscDocItem[] {
   const line = (kind: MiscDocItem['kind'], d?: MiscDocument | null): MiscDocItem[] =>
@@ -74,7 +121,11 @@ export const roomOf = (e: Pick<HearingEntry, 'building' | 'floor'>): string => [
 
 export type Field = [label: string, value: string]
 
+const dateText = (d: string) => (d ? fullDate(d) : '')
+
 export function hearingFields(e: HearingEntry, opts: { judge?: string; listNo?: number | string } = {}): Field[] {
+  const many = e.opponents.length > 1
+  const lone = e.opponents[0]
   const rows: [string, string | number | undefined | null, boolean?][] = [
     ['Relief Sought', e.reliefSought],
     ['Case No', e.caseNo, true],
@@ -84,13 +135,45 @@ export function hearingFields(e: HearingEntry, opts: { judge?: string; listNo?: 
     ['Judge', opts.judge ?? e.judgeName],
     ['File No', e.fileNo],
     ['CNR No', e.cnrNo],
-    ['Filing Date', e.caseFilingDate ? fullDate(e.caseFilingDate) : ''],
+    ['Filing Date', dateText(e.caseFilingDate)],
+    ['Registration Date', dateText(e.registrationDate)],
+    ['First Hearing', dateText(e.firstHearingDate)],
+    ['Last Hearing', dateText(e.lastHearingDate)],
+    ['Case Stage', e.caseStage],
+    ['Acts & Sections', e.actsSections],
     ['District', e.district],
     ['Court', e.court === NO_COURT ? '' : e.court],
-    ['Client', e.clientLabel],
-    ['Opposite Party', e.opposingParty],
+    ['Decision Date', dateText(e.decisionDate)],
+    ['Nature of Disposal', e.disposalNature],
+    ['FIR No', e.firNo],
+    ['Section', e.firSection],
+    ['Police Station', e.policeStation],
+    [e.clients.length > 1 ? 'Clients' : 'Client', e.clients.join(', '), true],
+    [e.nonClients.length > 1 ? 'Non-clients' : 'Non-client', e.nonClients.join(', ')],
+    ...(many
+      ? [['Opposite Parties', e.opponents.map((o, i) => `${i + 1}. ${partyLine(o)}`).join('\n')] as [string, string]]
+      : [
+          ['Opposite Party', lone?.name || e.opposingParty] as [string, string | undefined],
+          ["Father's Name", lone?.fatherName] as [string, string | null | undefined],
+          ['Address', lone?.address] as [string, string | null | undefined],
+          ['Phone', lone?.phone] as [string, string | null | undefined],
+        ]),
+    ['Description', e.description],
   ]
   return rows.filter(([, v, always]) => always || (v !== '' && v != null)).map(([l, v]) => [l, v == null || v === '' ? '—' : String(v)])
+}
+
+export function chequeFields(e: HearingEntry): Field[] {
+  const c = e.cheque
+  const rows: [string, string][] = [
+    ['Cheque No', c.no],
+    ['Cheque Date', dateText(c.date)],
+    ['Memo Date', dateText(c.memoDate)],
+    ['Bouncing Reason', c.reason],
+    ['Claim Amount', c.claim],
+    ['Notice Date', dateText(c.noticeDate)],
+  ]
+  return rows.filter(([, v]) => !!v)
 }
 
 export function applicationFields(e: HearingEntry): Field[] {
@@ -114,6 +197,7 @@ export function buildEntries(cases: CaseItem[], rows: HearingRow[], today: strin
   const out: HearingEntry[] = []
 
   const history = new Map<number, HistoryItem[]>()
+  const lastHeard = new Map<number, string>()
 
   const make = (c: CaseItem, date: string, row?: HearingRow): HearingEntry => ({
     key: `${c.id}|${date}`,
@@ -141,6 +225,7 @@ export function buildEntries(cases: CaseItem[], rows: HearingRow[], today: strin
     ...caseSide(c),
     caseNext: c.nextHearing || '',
     caseHistory: [],
+    ...caseExtra(c),
   })
 
   for (const r of rows) {
@@ -155,6 +240,7 @@ export function buildEntries(cases: CaseItem[], rows: HearingRow[], today: strin
     seen.add(e.key)
     out.push(e)
     const item = { date: r.date, note: [r.outcome, r.notes].map(v => (v || '').trim()).filter(Boolean).join(' — ') }
+    if (r.date <= today && r.date > (lastHeard.get(r.caseId) || '')) lastHeard.set(r.caseId, r.date)
     const past = history.get(r.caseId)
     if (past) past.push(item)
     else history.set(r.caseId, [item])
@@ -220,9 +306,12 @@ export function buildEntries(cases: CaseItem[], rows: HearingRow[], today: strin
         clientLabel: c?.clientName || a.clientName || '',
         caseNext: '',
         caseHistory: [],
+        ...caseExtra(c),
       })
     })
   }
+
+  for (const e of out) e.lastHearingDate = lastHeard.get(e.caseId) || ''
 
   return out.sort((a, b) =>
     a.date.localeCompare(b.date) || a.court.localeCompare(b.court) || (a.kind === b.kind ? 0 : a.kind === 'hearing' ? -1 : 1)

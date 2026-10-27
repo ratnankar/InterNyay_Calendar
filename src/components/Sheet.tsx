@@ -69,6 +69,8 @@ export default function Sheet({ visible, onClose, children, background }: Props)
   }, [y, enabled, getClose, getVisible, getHeight, getReduce])
 
   const lift = { transform: [{ translateY: y }] }
+  const overlay = Platform.OS !== 'ios'
+  const dim = useMemo(() => y.interpolate({ inputRange: [0, Math.max(height, 1)], outputRange: [1, 0], extrapolate: 'clamp' }), [y, height])
 
   if (dialog) {
     return (
@@ -95,12 +97,14 @@ export default function Sheet({ visible, onClose, children, background }: Props)
       animationType={dragClosed ? 'none' : 'slide'}
       onRequestClose={onClose}
       presentationStyle="pageSheet"
+      transparent={overlay}
       statusBarTranslucent
       navigationBarTranslucent
       supportedOrientations={['portrait', 'landscape']}
     >
       <SafeAreaProvider>
         <SheetDragContext.Provider value={drag}>
+          {overlay ? <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, s.dim, { opacity: dim }]} /> : null}
           <Animated.View style={[s.fill, lift]}>
             <SafeAreaView style={[s.root, background ? { backgroundColor: background } : null]} edges={['top', 'left', 'right']}>{children}</SafeAreaView>
           </Animated.View>
@@ -114,6 +118,7 @@ const useS = makeStyles(() => StyleSheet.create({
   fill: { flex: 1 },
   root: { flex: 1, backgroundColor: theme.bg },
   lift: { width: '100%', alignItems: 'center' },
+  dim: { backgroundColor: theme.scrim },
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.scrim },
   dialog: { width: '100%', maxWidth: 640, borderRadius: 24, overflow: 'hidden', ...liftShadow },
 }))

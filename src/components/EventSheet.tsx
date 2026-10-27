@@ -6,7 +6,7 @@ import { Text } from '../ui'
 import { shareText } from '../share'
 import { fetchHearingLeave } from '../api'
 import { longDate, relativeLabel } from '../dates'
-import { applicationFields, hearingFields } from '../hearings'
+import { applicationFields, chequeFields, hearingFields } from '../hearings'
 import { asHearingLeave, leaveForEntry, leaveNotice } from '../leave'
 import { listNoOf, rememberListNos } from '../listNo'
 import { useNotes } from '../NotesContext'
@@ -89,7 +89,8 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
   const share = async () => {
     if (!e) return
     const fields = (e.kind === 'misc' ? applicationFields(e) : hearingFields(e, { judge, listNo })).map(([l, v]) => `${l}: ${v}`)
-    const text = [e.kind === 'misc' ? `${e.applicationType} (Misc. application)` : e.caseTitle, when, ...fields].filter(Boolean).join('\n')
+    const cheque = e.kind === 'misc' ? [] : chequeFields(e).map(([l, v]) => `${l}: ${v}`)
+    const text = [e.kind === 'misc' ? `${e.applicationType} (Misc. application)` : e.caseTitle, when, ...fields, ...cheque].filter(Boolean).join('\n')
     try {
       if (await shareText(text, { webShare: true }) === 'copied') setNote('Copied to clipboard')
     } catch { }
@@ -124,6 +125,7 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
 
             <View style={s.pad}>
               <DetailTable fields={misc ? applicationFields(e) : hearingFields(e, { judge, listNo })} />
+              {misc ? null : <DetailTable title="Cheque Dishonour Details (Sec 138 NI Act)" fields={chequeFields(e)} />}
               <HistoryPanel
                 items={misc ? e.applicationHearings : e.caseHistory}
                 next={misc ? e.applicationNext : e.caseNext}
