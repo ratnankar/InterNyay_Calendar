@@ -17,7 +17,7 @@ const HAND_SCROLL = Platform.OS === 'android'
 const CLAIM = 6
 const GLIDE_MS = 240
 
-export default function SheetScroll({ children, dragToClose = true, onScroll, scrollEnabled = true, ...rest }: Props) {
+export default function SheetScroll({ children, dragToClose = true, onScroll, scrollEnabled = true, contentContainerStyle, ...rest }: Props) {
   const insets = useSafeAreaInsets()
   const drag = useContext(SheetDragContext)
   const active = dragToClose && drag
@@ -39,11 +39,15 @@ export default function SheetScroll({ children, dragToClose = true, onScroll, sc
   // claim a drag while the list is locked) so a drag that started at the top keeps being followed after the list has moved off it
   const { begin, target, scrollTo } = useHandScroll(list, offset)
 
+  // The hand scroller also owns a touch from its very start when the list is locked and nothing inside (a card's tap area, a
+  // button) wants it. Otherwise a drag that begins on plain space - the gaps between cards, the opened details of a case -
+  // had no owner while native scrolling was off and did nothing. A tap area inside still wins its own touches.
   const hand = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => getLock(),
     onMoveShouldSetPanResponderCapture: (_, g) => getLock() && g.dy < -CLAIM && -g.dy > Math.abs(g.dx) * 1.5,
     onPanResponderGrant: (_, g) => begin(g.dy),
     onPanResponderMove: (_, g) => scrollTo(target(g.dy), false),
-    onPanResponderRelease: (_, g) => scrollTo(Math.max(0, target(g.dy) - g.vy * GLIDE_MS), true),
+    onPanResponderRelease: (_, g) => { if (Math.abs(g.dy) > CLAIM) scrollTo(Math.max(0, target(g.dy) - g.vy * GLIDE_MS), true) },
   }), [getLock, begin, target, scrollTo])
 
   return (
@@ -55,7 +59,7 @@ export default function SheetScroll({ children, dragToClose = true, onScroll, sc
           scrollEnabled={scrollEnabled && !lock}
           onScroll={track}
           scrollEventThrottle={32}
-          contentContainerStyle={[s.content, { paddingBottom: 40 + insets.bottom }]}
+          contentContainerStyle={[s.content, contentContainerStyle, { paddingBottom: 40 + insets.bottom }]}
         >
           {children}
         </ScrollView>

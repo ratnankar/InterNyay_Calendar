@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { useOnChange } from '../hooks'
-import { Platform, ScrollView, StyleSheet, View } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Platform, StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 import { Text } from '../ui'
 import { shareText } from '../share'
 import { fetchHearingLeave } from '../api'
@@ -17,6 +16,8 @@ import HistoryPanel from './HistoryPanel'
 import Icon, { IconName } from './Icon'
 import IconButton from './IconButton'
 import Sheet from './Sheet'
+import SheetScroll from './SheetScroll'
+import { SheetDragContext } from './sheetDrag'
 import Tappable from './Tappable'
 
 interface Props {
@@ -43,9 +44,14 @@ function Row({ icon, title, sub, children }: { icon: IconName; title?: string; s
   )
 }
 
+// The coloured top of the sheet takes part in the drag-down-to-close gesture owned by <Sheet>
+function DragHead({ style, children }: { style: StyleProp<ViewStyle>; children: React.ReactNode }) {
+  const drag = useContext(SheetDragContext)
+  return <View style={style} {...drag?.header}>{children}</View>
+}
+
 export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNote, onClose }: Props) {
   const s = useS()
-  const insets = useSafeAreaInsets()
   const { notes } = useNotes()
   const [fetched, setFetched] = useState<{ key: string; leave: HearingLeave | undefined } | null>(null)
   const [note, setNote] = useState('')
@@ -100,7 +106,7 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
     <Sheet visible={!!e} onClose={onClose} background={colour}>
       {e ? (
         <View style={s.fill}>
-          <View style={[s.head, { backgroundColor: colour }]}>
+          <DragHead style={[s.head, { backgroundColor: colour }]}>
             <View style={s.column}>
               <View style={s.headRow}>
                 <IconButton icon="close" label="Close" tone="plain" color={ink.ink} onPress={onClose} />
@@ -113,9 +119,10 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
                 {badges.map(t => <View key={t} style={s.tag}><Text style={[s.tagText, { color: ink.ink }]}>{t}</Text></View>)}
               </View>
             </View>
-          </View>
+          </DragHead>
 
-          <ScrollView style={s.body} contentContainerStyle={[s.column, { paddingBottom: 40 + insets.bottom }]}>
+          <View style={s.body}>
+          <SheetScroll contentContainerStyle={s.bodyContent}>
             {leaveNow?.onLeave ? (
               <View style={s.leave}>
                 <Icon name="leave" size={20} color={theme.danger} />
@@ -159,7 +166,8 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
                 </View>
               </Tappable>
             ) : null}
-          </ScrollView>
+          </SheetScroll>
+          </View>
         </View>
       ) : null}
     </Sheet>
@@ -172,6 +180,7 @@ const useS = makeStyles(() => StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center' },
   head: { paddingHorizontal: 8, paddingBottom: 22 },
   column: { width: '100%', maxWidth: 720, alignSelf: 'center' },
+  bodyContent: { padding: 0 },
   title: { ...font.eventTitle, fontWeight: '700', paddingHorizontal: 56, marginTop: 4, fontFamily: theme.display },
   when: { ...font.body, paddingHorizontal: 56, marginTop: 8 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 56, marginTop: 10 },
