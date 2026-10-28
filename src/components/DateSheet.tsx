@@ -11,7 +11,7 @@ import { animateLayout, stagger, useSlideIn } from '../motion'
 import { asHearingLeave, leaveForEntry } from '../leave'
 import { holidayCourtLabel, holidayCourtOf } from '../holidays'
 import { HearingEntry, HearingLeave, Holiday, JudgeLeave } from '../types'
-import { font, HOLIDAY_COLOURS, makeStyles, radius, theme, withAlpha } from '../theme'
+import { font, HOLIDAY_COLOURS, makeStyles, radius, theme } from '../theme'
 import Banner from './Banner'
 import DayFilters from './DayFilters'
 import LeaveSlider, { HANDLE_HEIGHT } from './LeaveSlider'
@@ -164,7 +164,6 @@ export default function DateSheet({ token, date, entries, holiday, noHearing, ju
     return part
   }
 
-  const isSunday = !!date && parseKey(date).getDay() === 0
   let order = 0
   const next = () => 100 + stagger(order++)
 
@@ -182,15 +181,6 @@ export default function DateSheet({ token, date, entries, holiday, noHearing, ju
         <Animated.View style={[s.body, slide]}>
           <SheetScroll>
             {holiday ? <HolidayBanner holiday={holiday} /> : null}
-            {isSunday ? (
-              <Banner
-                title="Sunday"
-                lines={['Courts do not sit on Sunday, no hearings are set.']}
-                accent={theme.sunday}
-                tint={withAlpha(theme.sunday, 0.1)}
-                border={withAlpha(theme.sunday, 0.3)}
-              />
-            ) : null}
             {noHearing ? <Banner title="No hearing on this date" lines={['This date was crossed out in InterNyay.']} /> : null}
             {entries.length === 0 ? <Text style={s.empty}>No hearings or applications on this date.</Text> : null}
             {entries.length > 0 ? (

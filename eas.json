@@ -7,7 +7,9 @@
     "base": {
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://api.internyay.publicvm.com/api",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "905072813135-n8hkf18j07spkm4o8dungeliuk62fa4p.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "905072813135-n8hkf18j07spkm4o8dungeliuk62fa4p.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "905072813135-s6mh16ngp2rebjo3b23mn0c25mk34aq9.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.905072813135-s6mh16ngp2rebjo3b23mn0c25mk34aq9"
       }
     },
     "development": {
@@ -16,6 +18,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
       }
     },
     "preview": {
@@ -23,6 +28,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
       }
     },
     "production": {
@@ -30,10 +38,21 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    },
+    "ios-simulator": {
+      "extends": "base",
+      "ios": {
+        "simulator": true
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {}
+    }
   }
 }
