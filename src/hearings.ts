@@ -146,7 +146,6 @@ export function hearingFields(e: HearingEntry, opts: { judge?: string; listNo?: 
     ['Decision Date', dateText(e.decisionDate)],
     ['Nature of Disposal', e.disposalNature],
     ['FIR No', e.firNo],
-    ['Section', e.firSection],
     ['Police Station', e.policeStation],
     [e.clients.length > 1 ? 'Clients' : 'Client', e.clients.join(', '), true],
     [e.nonClients.length > 1 ? 'Non-clients' : 'Non-client', e.nonClients.join(', ')],
