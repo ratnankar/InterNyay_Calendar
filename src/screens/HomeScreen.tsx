@@ -69,11 +69,11 @@ export default function HomeScreen({ token }: { token: string }) {
   useEffect(() => { loadMe() }, [loadMe])
 
   const sortedCourts = useMemo(() => [...courts].sort((a, b) => a.localeCompare(b)), [courts])
-  // The judges on leave panels offer the preferred courts (as in the web app), plus any court picked on the calendar
+  // The judges on leave panels offer every court, the preferred ones first (the panel opens on the first preferred court)
   const leaveCourts = useMemo(() => {
     if (preferredCourts.length === 0) return sortedCourts
-    return [...preferredCourts, ...court.filter(c => c && !preferredCourts.includes(c))]
-  }, [preferredCourts, sortedCourts, court])
+    return [...preferredCourts, ...sortedCourts.filter(c => !preferredCourts.includes(c))]
+  }, [preferredCourts, sortedCourts])
   const courtCounts = useMemo(() => {
     const n = new Map<string, number>()
     entries.forEach(e => n.set(e.court, (n.get(e.court) || 0) + 1))
