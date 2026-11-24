@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Linking, StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
 import { Field } from '../hearings'
 import { font, makeStyles, radius, theme } from '../theme'
@@ -13,6 +13,10 @@ interface Props {
 }
 
 const isWide = ([label, value]: Field) => label === 'Description' || value.includes('\n')
+
+const isLink = ([label, value]: Field) => label === 'VC Link' && /^https?:\/\//i.test(value)
+
+const openLink = (url: string) => { Linking.openURL(url).catch(() => undefined) }
 
 interface Line {
   fields: Field[]
@@ -52,7 +56,13 @@ export default function DetailTable({ fields, mono = ['CNR No'], title }: Props)
                 <View style={s.labelCell}><Text style={s.label}>{label}</Text></View>
                 {/* Only the CNR number can be selected for copying: on Android a selectable text takes over the touch, so a drag that
                     starts on it would not scroll the list */}
-                <View style={s.valueCell}><Text style={[s.value, mono.includes(label) && s.mono]} selectable={mono.includes(label)}>{value}</Text></View>
+                <View style={s.valueCell}>
+                  {isLink([label, value]) ? (
+                    <Text style={[s.value, s.link]} accessibilityRole="link" onPress={() => openLink(value)}>{value}</Text>
+                  ) : (
+                    <Text style={[s.value, mono.includes(label) && s.mono]} selectable={mono.includes(label)}>{value}</Text>
+                  )}
+                </View>
               </View>
             ))}
 
@@ -77,4 +87,5 @@ const useS = makeStyles(() => StyleSheet.create({
   label: { ...font.small, fontWeight: '600', color: theme.ink },
   value: { ...font.small, color: theme.ink },
   mono: { fontFamily: theme.mono },
+  link: { color: theme.brand, textDecorationLine: 'underline' },
 }))

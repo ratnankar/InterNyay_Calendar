@@ -81,6 +81,7 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
   const when = e ? longDate(e.date) : ''
   const rel = e ? relativeLabel(e.date) : ''
   const judge = leave?.judgeName || e?.judgeName
+  const vcLink = leave?.vcLink || e?.vcLink || undefined
   const ink = readable(colour)
   const misc = e?.kind === 'misc'
   const disposedApp = !!e?.disposedOn || /^disposed/i.test(e?.applicationStatus || '')
@@ -94,7 +95,7 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
 
   const share = async () => {
     if (!e) return
-    const fields = (e.kind === 'misc' ? applicationFields(e) : hearingFields(e, { judge, listNo })).map(([l, v]) => `${l}: ${v}`)
+    const fields = (e.kind === 'misc' ? applicationFields(e) : hearingFields(e, { judge, vcLink, listNo })).map(([l, v]) => `${l}: ${v}`)
     const cheque = e.kind === 'misc' ? [] : chequeFields(e).map(([l, v]) => `${l}: ${v}`)
     const text = [e.kind === 'misc' ? `${e.applicationType} (Misc. application)` : e.caseTitle, when, ...fields, ...cheque].filter(Boolean).join('\n')
     try {
@@ -131,7 +132,7 @@ export default function EventSheet({ token, entry: e, colour, judgeLeaves, onNot
             ) : null}
 
             <View style={s.pad}>
-              <DetailTable fields={misc ? applicationFields(e) : hearingFields(e, { judge, listNo })} />
+              <DetailTable fields={misc ? applicationFields(e) : hearingFields(e, { judge, vcLink, listNo })} />
               {misc ? null : <DetailTable title="Cheque Dishonour Details (Sec 138 NI Act)" fields={chequeFields(e)} />}
               <HistoryPanel
                 items={misc ? e.applicationHearings : e.caseHistory}

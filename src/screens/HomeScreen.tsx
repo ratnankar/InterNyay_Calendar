@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLatest, useOnChange } from '../hooks'
@@ -21,7 +21,7 @@ import SettingsSheet from '../components/SettingsSheet'
 import Skeleton from '../components/Skeleton'
 import Tappable from '../components/Tappable'
 import { fetchMe } from '../api'
-import { addDays, addMonths, MONTHS, parseKey, todayKey } from '../dates'
+import { addDays, addMonths, dateKey, MONTHS, parseKey, todayKey } from '../dates'
 import { countLabel, inCourts, noCourtSelected } from '../hearings'
 import { clearListNos, loadListNos } from '../listNo'
 import { useLayout } from '../layout'
@@ -37,7 +37,7 @@ const NO_DATES = new Set<string>()
 export default function HomeScreen({ token }: { token: string }) {
   const s = useS()
   const { session, signOut } = useAuth()
-  const { entries, byDate, judgeLeaves, courts, holidayByDate: allHolidays, noHearing: allNoHearing, loading, refreshing, error, notice, reload } = useHearingData(token, session?.user.id)
+  const { entries, byDate, judgeLeaves, courts, preferredCourts, holidayByDate: allHolidays, noHearing: allNoHearing, loading, refreshing, error, notice, reload } = useHearingData(token, session?.user.id)
   const { settings } = useSettings()
   const { colours, courtFilter: court, setColour, setCourtFilter: setCourt } = usePrefs()
   const holidayByDate = settings.showHolidays ? allHolidays : NO_HOLIDAYS
@@ -45,6 +45,11 @@ export default function HomeScreen({ token }: { token: string }) {
   const { docked, dockWidth, arrows, short } = useLayout()
 
   const [anchor, setAnchor] = useState(todayKey())
+  // The date highlighted in the grid: only one the person tapped. Sliding to another month keeps the day number in
+  // `anchor`, but that must not light up a card, so the highlight only shows while it still equals `anchor`.
+  // The day of month sliding comes back to (31 Jan -> 28 Feb -> 31 Mar), so going back never drifts to another day
+  const homeDay = useRef(parseKey(todayKey()).getDate())
+  const [picked, setPicked] = useState<string | null>(null)
   const [sheetDate, setSheetDate] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [pickerBase, setPickerBase] = useState(anchor)
@@ -64,6 +69,11 @@ export default function HomeScreen({ token }: { token: string }) {
   useEffect(() => { loadMe() }, [loadMe])
 
   const sortedCourts = useMemo(() => [...courts].sort((a, b) => a.localeCompare(b)), [courts])
+  // The judges on leave panels offer the preferred courts (as in the web app), plus any court picked on the calendar
+  const leaveCourts = useMemo(() => {
+    if (preferredCourts.length === 0) return sortedCourts
+    return [...preferredCourts, ...court.filter(c => c && !preferredCourts.includes(c))]
+  }, [preferredCourts, sortedCourts, court])
   const courtCounts = useMemo(() => {
     const n = new Map<string, number>()
     entries.forEach(e => n.set(e.court, (n.get(e.court) || 0) + 1))
@@ -78,13 +88,26 @@ export default function HomeScreen({ token }: { token: string }) {
     if (courts.length > 0 && court.some(c => c && !courts.includes(c))) setCourt(court.filter(c => courts.includes(c)))
   }, [courts, court, setCourt])
 
-  const step = useCallback((d: number) => setAnchor(a => addMonths(a, d)), [])
-  const goToday = () => setAnchor(todayKey())
+  // A transition keeps touches and the slide responsive while the new month is drawn
+  const step = useCallback((d: number) => {
+    startTransition(() => {
+      setPicked(null)
+      setAnchor(a => {
+        const next = parseKey(addMonths(a, d).slice(0, 7) + '-01')
+        const last = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+        next.setDate(Math.min(homeDay.current, last))
+        return dateKey(next)
+      })
+    })
+  }, [])
+  const goToday = () => { homeDay.current = parseKey(todayKey()).getDate(); setPicked(null); setAnchor(todayKey()) }
 
   const stepSheetDay = (delta: number) => {
     if (!sheetDate) return
     const next = addDays(sheetDate, delta)
     setSheetDate(next)
+    homeDay.current = parseKey(next).getDate()
+    setPicked(next)
     setAnchor(next)
   }
 
@@ -128,7 +151,7 @@ export default function HomeScreen({ token }: { token: string }) {
   const refresh = () => { clearListNos(); reload(); loadMe() }
   const getRefresh = useLatest(refresh)
   const stableRefresh = useCallback(() => getRefresh()(), [getRefresh])
-  const selectDate = useCallback((d: string) => { setAnchor(d); setSheetDate(d) }, [])
+  const selectDate = useCallback((d: string) => { homeDay.current = parseKey(d).getDate(); setPicked(d); setAnchor(d); setSheetDate(d) }, [])
   const swipeUp = useCallback(() => setLeaveOpen(true), [])
 
   // The notepad opens once the sheet or search it was started from has finished closing
@@ -288,7 +311,7 @@ export default function HomeScreen({ token }: { token: string }) {
               <Reveal variant="fade" style={s.fill}>
                 <MonthCalendar
                   year={shown.getFullYear()} month={shown.getMonth()} weekStart={settings.weekStart} byDate={byDate} holidayByDate={holidayByDate} noHearing={noHearing} judgeLeaves={judgeLeaves}
-                  selectedCourt={court} selected={shownAnchor} colourOf={colourOf}
+                  selectedCourt={court} selected={picked === shownAnchor ? shownAnchor : undefined} colourOf={colourOf}
                   onSelectDate={selectDate} onChangeMonth={step}
                   onSwipeUp={swipeUp}
                   refreshControl={refreshControl}
@@ -300,7 +323,7 @@ export default function HomeScreen({ token }: { token: string }) {
                 <View style={s.handleSpace} />
                 <LeaveSlider
                   open={leaveOpen} onOpenChange={setLeaveOpen} date={anchor}
-                  leaves={judgeLeaves} entries={entries} courts={sortedCourts}
+                  leaves={judgeLeaves} entries={entries} courts={leaveCourts} defaultCourt={preferredCourts[0]}
                   selectedCourt={court} colourOf={colourOf}
                 />
               </>
@@ -317,7 +340,7 @@ export default function HomeScreen({ token }: { token: string }) {
         entries={sheetDate ? byDate.get(sheetDate) || [] : []}
         holiday={sheetDate ? holidayByDate.get(sheetDate) : undefined}
         noHearing={sheetDate ? noHearing.has(sheetDate) : false}
-        judgeLeaves={judgeLeaves} courts={sortedCourts} selectedCourt={court} colourOf={colourOf} onNote={openCaseNotes} onClose={() => setSheetDate(null)} onStep={stepSheetDay}
+        judgeLeaves={judgeLeaves} courts={sortedCourts} leaveCourts={leaveCourts} defaultCourt={preferredCourts[0]} selectedCourt={court} colourOf={colourOf} onNote={openCaseNotes} onClose={() => setSheetDate(null)} onStep={stepSheetDay}
       />
       </ErrorBoundary>
       <ErrorBoundary fallback={null} resetKey={settingsOpen} onError={() => setSettingsOpen(false)}>

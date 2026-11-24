@@ -49,6 +49,7 @@ function HearingCard({ entry: e, colour, leave, highlighted, hideCourt, onNote }
 
   const listNo = misc ? undefined : leave?.causeListNo ?? listNoOf(e.caseId, e.date)
   const judge = leave?.judgeName || e.judgeName
+  const vcLink = leave?.vcLink || e.vcLink || undefined
   const badges = badgesOf(e)
 
   // Tapping the top of the card (or "More details") opens the details; tapping it again closes them
@@ -110,7 +111,7 @@ function HearingCard({ entry: e, colour, leave, highlighted, hideCourt, onNote }
         <Expand open={more}>
           <View style={s.full}>
             {badges.length ? <View style={s.badges}>{badges.map(t => <View key={t} style={s.badge}><Text style={s.badgeText}>{t}</Text></View>)}</View> : null}
-            <DetailTable fields={misc ? applicationFields(e) : hearingFields(e, { judge, listNo })} />
+            <DetailTable fields={misc ? applicationFields(e) : hearingFields(e, { judge, vcLink, listNo })} />
             {misc ? null : <DetailTable title={CHEQUE_TITLE} fields={chequeFields(e)} />}
             <HistoryPanel
               items={misc ? e.applicationHearings : e.caseHistory}

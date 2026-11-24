@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { Animated, Pressable, RefreshControlProps, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from '../ui'
-import { dateKey, MONTHS, monthOffset, sundayColumn, todayKey, weekdayLetters, weekdayNames } from '../dates'
-import { useMonthPager } from '../motion'
+import { dateKey, MONTHS, monthOffset, todayKey, weekdayNames } from '../dates'
+import { MONTH_SPAN, useMonthSlider } from '../motion'
 import { firstParty, inCourts } from '../hearings'
 import { leaveForEntry } from '../leave'
 import { itemOf } from '../listNo'
@@ -43,8 +43,6 @@ interface CellProps {
   monthName: string
   startOfMonth: boolean
   inMonth: boolean
-  sunday: boolean
-  column: number
   isToday: boolean
   isSelected: boolean
   chips: Chip[]
@@ -55,7 +53,7 @@ interface CellProps {
 }
 
 // One day. Memoised, so picking a date or changing the month only redraws the cells that actually changed.
-const DayCell = React.memo(function DayCell({ k, day, monthName, startOfMonth, inMonth, sunday, column, isToday, isSelected, chips, capacity, roomy, chipH, onSelect }: CellProps) {
+const DayCell = React.memo(function DayCell({ k, day, monthName, startOfMonth, inMonth, isToday, isSelected, chips, capacity, roomy, chipH, onSelect }: CellProps) {
   const s = useS()
   const overflow = chips.length > capacity
   const visible = overflow ? chips.slice(0, Math.max(1, capacity - 1)) : chips
@@ -65,10 +63,13 @@ const DayCell = React.memo(function DayCell({ k, day, monthName, startOfMonth, i
       onPress={() => onSelect(k)}
       accessibilityRole="button"
       accessibilityLabel={`${day} ${monthName}, ${chips.length === 0 ? 'no items' : `${chips.length} item${chips.length === 1 ? '' : 's'}`}${chips.some(c => c.misc) ? ', includes a miscellaneous application' : ''}${chips.some(c => c.leave) ? ', a judge is on leave' : ''}`}
-      style={(state) => [s.cell, column > 0 && s.rule, sunday && s.cellSunday, (state as any).hovered && s.cellHover, state.pressed && s.cellPressed]}
+      style={s.cell}
+      unstable_pressDelay={120}
     >
+      {(state) => (
+      <View style={[s.tile, (state as any).hovered && s.cellHover, state.pressed && s.cellPressed]}>
       <View style={[s.num, isSelected && !isToday && s.numSelected, isToday && s.numToday]}>
-        <Text style={[s.numText, sunday && inMonth && s.numSunday, isSelected && !isToday && s.numTextSelected, isToday && s.numTextToday]}>
+        <Text style={[s.numText, isSelected && !isToday && s.numTextSelected, isToday && s.numTextToday]}>
           {startOfMonth ? `${day} ${monthName.slice(0, 3)}` : day}
         </Text>
       </View>
@@ -84,14 +85,31 @@ const DayCell = React.memo(function DayCell({ k, day, monthName, startOfMonth, i
         )
       })}
       {hidden > 0 ? <Text style={s.more}>{hidden} more</Text> : null}
+      </View>
+      )}
     </Pressable>
   )
 })
 
-function MonthCalendar({ year, month, weekStart, byDate, holidayByDate, noHearing, judgeLeaves, selectedCourt, selected, colourOf, onSelectDate, onChangeMonth, onSwipeUp, refreshControl }: Props) {
+interface GridProps {
+  year: number
+  month: number
+  width: number
+  viewport: number
+  weekStart: 0 | 1
+  byDate: Map<string, HearingEntry[]>
+  holidayByDate: Map<string, Holiday>
+  noHearing: Set<string>
+  judgeLeaves: JudgeLeave[]
+  selectedCourt: string[]
+  selected?: string
+  colourOf: (court: string) => string
+  onSelectDate: (key: string) => void
+}
+
+// One month's grid. Three of these sit side by side so the neighbouring months are already there while sliding.
+const MonthGrid = React.memo(function MonthGrid({ year, month, width, viewport, byDate, holidayByDate, noHearing, judgeLeaves, selectedCourt, selected, colourOf, onSelectDate }: GridProps) {
   const s = useS()
-  const [viewport, setViewport] = useState(0)
-  const [width, setWidth] = useState(0)
   const today = todayKey()
   const first = monthOffset(year, month)
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -102,9 +120,6 @@ function MonthCalendar({ year, month, weekStart, byDate, holidayByDate, noHearin
   const chipH = roomy ? 22 : 16
   const rowHeight = Math.max(MIN_ROW, viewport ? viewport / rows : MIN_ROW)
   const capacity = Math.max(1, Math.floor((rowHeight - NUMBER_BLOCK) / (chipH + 2)))
-
-  const scrolls = viewport > 0 && rowHeight * rows > viewport + 1
-  const pager = useMonthPager(year * 12 + month, onChangeMonth, scrolls ? undefined : onSwipeUp)
 
   // Every day's items are worked out once per month or data change, not on every redraw
   const cells = useMemo(() => {
@@ -131,16 +146,77 @@ function MonthCalendar({ year, month, weekStart, byDate, holidayByDate, noHearin
     )
   }, [year, month, first, rows, byDate, holidayByDate, noHearing, judgeLeaves, selectedCourt, colourOf, narrow, roomy])
 
-  const names = roomy ? weekdayNames().map(n => n.toUpperCase()) : weekdayLetters()
+  return (
+    <View style={{ width }}>
+      {cells.map((week, w) => (
+        <View key={w} style={[s.week, { height: rowHeight }]}>
+          {week.map(c => (
+            <DayCell
+              key={`${w}-${c.column}`}
+              k={c.key}
+              day={c.date.getDate()}
+              monthName={MONTHS[c.date.getMonth()]}
+              startOfMonth={c.date.getDate() === 1}
+              inMonth={c.date.getMonth() === month}
+              isToday={c.key === today}
+              isSelected={c.key === selected}
+              chips={c.chips}
+              capacity={capacity}
+              roomy={roomy}
+              chipH={chipH}
+              onSelect={onSelectDate}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+  )
+})
+
+function MonthCalendar({ year, month, weekStart, byDate, holidayByDate, noHearing, judgeLeaves, selectedCourt, selected, colourOf, onSelectDate, onChangeMonth, onSwipeUp, refreshControl }: Props) {
+  const s = useS()
+  const [viewport, setViewport] = useState(0)
+  const [width, setWidth] = useState(0)
+  const cellW = width / 7
+  const roomy = cellW >= ROOMY_CELL
+  const first = monthOffset(year, month)
+  const rows = Math.ceil((first + new Date(year, month + 1, 0).getDate()) / 7)
+  const rowHeight = Math.max(MIN_ROW, viewport ? viewport / rows : MIN_ROW)
+
+  const scrolls = viewport > 0 && rowHeight * rows > viewport + 1
+  const pager = useMonthSlider(year * 12 + month, width, onChangeMonth, scrolls ? undefined : onSwipeUp)
+
+  const names = weekdayNames().map(n => n.slice(0, 3))
+  const shared = { width, viewport, weekStart, byDate, holidayByDate, noHearing, judgeLeaves, selectedCourt, selected, colourOf, onSelectDate }
+  // Previous, current and next month, each at its own fixed place in the strip
+  const months = [-1, 0, 1].map(d => {
+    const date = new Date(year, month + d, 1)
+    const y = date.getFullYear()
+    const m = date.getMonth()
+    return { y, m, n: y * 12 + m, rows: Math.ceil((monthOffset(y, m) + new Date(y, m + 1, 0).getDate()) / 7) }
+  })
+  const trackHeightValue = Math.max(...months.map(c => Math.max(MIN_ROW, viewport ? viewport / c.rows : MIN_ROW) * c.rows))
+
+  const trackHeight = trackHeightValue
+  const headStyle = useMemo(() => [s.headTrack, { width: width * (2 * MONTH_SPAN + 1), left: -MONTH_SPAN * width, transform: [{ translateX: pager.x }] }], [s, width, pager.x])
+  const trackStyle = useMemo(() => [s.track, { width: width * (2 * MONTH_SPAN + 1), left: -MONTH_SPAN * width, height: trackHeight, transform: [{ translateX: pager.x }] }], [s, width, trackHeight, pager.x])
 
   return (
     <View style={s.wrap} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
       <View style={s.weekdays}>
-        {names.map((l, i) => (
-          <View key={i} style={[s.weekdayCell, i > 0 && s.rule]}>
-            <Text style={[s.weekday, roomy && s.weekdayRoomy, i === sundayColumn() && s.weekdaySunday]}>{l}</Text>
-          </View>
-        ))}
+        {width > 0 ? (
+          <Animated.View {...pager.handlers} style={headStyle}>
+            {months.map(c => (
+              <View key={c.n} style={[s.headSlot, { width, left: pager.place(c.n) }]}>
+                {names.map((l, i) => (
+                  <View key={i} style={s.weekdayCell}>
+                    <Text style={[s.weekday, roomy && s.weekdayRoomy]}>{l}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </Animated.View>
+        ) : null}
       </View>
 
       <ScrollView
@@ -148,53 +224,43 @@ function MonthCalendar({ year, month, weekStart, byDate, holidayByDate, noHearin
         refreshControl={refreshControl}
         onLayout={e => setViewport(e.nativeEvent.layout.height)}
         showsVerticalScrollIndicator={false}
+        // The coloured edge glow that Android draws when a finger drifts up or down during a sideways swipe
+        overScrollMode="never"
+        directionalLockEnabled
       >
-        <Animated.View {...pager.handlers} style={pager.style}>
-          {cells.map((week, w) => (
-            <View key={w} style={[s.week, w > 0 && s.weekRule, { height: rowHeight }]}>
-              {week.map(c => (
-                <DayCell
-                  key={`${w}-${c.column}`}
-                  k={c.key}
-                  day={c.date.getDate()}
-                  monthName={MONTHS[c.date.getMonth()]}
-                  startOfMonth={c.date.getDate() === 1}
-                  inMonth={c.date.getMonth() === month}
-                  sunday={c.date.getDay() === 0}
-                  column={c.column}
-                  isToday={c.key === today}
-                  isSelected={c.key === selected}
-                  chips={c.chips}
-                  capacity={capacity}
-                  roomy={roomy}
-                  chipH={chipH}
-                  onSelect={onSelectDate}
-                />
-              ))}
-            </View>
-          ))}
-        </Animated.View>
+        {width > 0 ? (
+          <Animated.View
+            {...pager.handlers}
+            style={trackStyle}
+          >
+            {months.map(c => (
+              <View key={c.n} style={[s.slot, { width, left: pager.place(c.n) }]}>
+                <MonthGrid year={c.y} month={c.m} {...shared} />
+              </View>
+            ))}
+          </Animated.View>
+        ) : null}
       </ScrollView>
     </View>
   )
 }
 
 const useS = makeStyles(() => StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: theme.card },
-  fill: { flex: 1 },
-  weekdays: { flexDirection: 'row', height: 32 },
+  wrap: { flex: 1, backgroundColor: theme.bg },
+  fill: { flex: 1, overflow: 'hidden' },
+  track: { flexShrink: 0 },
+  slot: { position: 'absolute', top: 0 },
+  weekdays: { height: 30, overflow: 'hidden' },
+  headTrack: { height: '100%', flexShrink: 0 },
+  headSlot: { position: 'absolute', top: 0, bottom: 0, flexDirection: 'row' },
   weekdayCell: { width: `${100 / 7}%`, height: '100%', alignItems: 'center', justifyContent: 'center' },
-  weekday: { textAlign: 'center', ...font.caption, fontWeight: '500', color: theme.muted },
-  weekdayRoomy: { ...font.microWide },
-  rule: { borderLeftWidth: 1, borderLeftColor: theme.line },
+  weekday: { textAlign: 'center', ...font.dayName, fontWeight: '500', color: withAlpha(theme.ink, 0.82) },
+  weekdayRoomy: { ...font.dayName },
   week: { flexDirection: 'row' },
-  weekRule: { borderTopWidth: 1, borderTopColor: theme.line },
-  cell: { width: `${100 / 7}%`, height: '100%', alignItems: 'stretch', paddingHorizontal: 1, paddingTop: 3, overflow: 'hidden' },
+  cell: { width: `${100 / 7}%`, height: '100%', padding: 1.5 },
+  tile: { flex: 1, alignItems: 'stretch', paddingTop: 5, borderRadius: 6, backgroundColor: theme.card },
   cellHover: { backgroundColor: theme.hoverSoft },
   cellPressed: { backgroundColor: theme.hover },
-  cellSunday: { backgroundColor: withAlpha(theme.sunday, 0.06) },
-  weekdaySunday: { color: theme.sunday },
-  numSunday: { color: theme.sunday },
   num: { alignSelf: 'center', minWidth: 24, height: 24, paddingHorizontal: 5, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 3 },
   numSelected: { backgroundColor: theme.blueSoft },
   numTextSelected: { color: theme.brand, fontWeight: '700' },

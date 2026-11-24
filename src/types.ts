@@ -44,6 +44,7 @@ export interface CaseItem {
   district?: string | null
   courtNo?: string | null
   judgeName?: string | null
+  vcLink?: string | null
   caseNature?: string | null
   caseType?: string | null
   clientName?: string | null
@@ -132,6 +133,7 @@ export interface Page<T> {
 export interface HearingLeave {
   caseId: number
   judgeName?: string | null
+  vcLink?: string | null
   onLeave: boolean
   leaveFrom?: string | null
   leaveTo?: string | null
@@ -161,6 +163,7 @@ export interface HearingEntry {
   district: string
   courtNo: string
   judgeName: string
+  vcLink: string
   notes: string
   outcome: string
   clientName: string
@@ -242,6 +245,13 @@ export interface Note {
   deleted?: boolean
   // updatedAt of the version the server has; the note still has to be sent when it differs from updatedAt
   synced?: number
+}
+
+// The courts the account works at, as set in the InterNyay web app (Profile). effective: the courts to open by default,
+// the one with the most cases first; custom: the user chose them (false: they are just the courts that have cases)
+export interface CourtPreferences {
+  custom: boolean
+  effective: { id: number; court: string; district?: string | null; cases?: number }[]
 }
 
 export interface CourtRow {

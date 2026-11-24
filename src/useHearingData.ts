@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState } from 'react-native'
-import { fetchCases, fetchCourts, fetchHearings, fetchHolidays, fetchJudgeLeaves, fetchMiscApplications, fetchNoHearingDates, errorMessage, errorStatus } from './api'
+import { fetchCases, fetchCourtPreferences, fetchCourts, fetchHearings, fetchHolidays, fetchJudgeLeaves, fetchMiscApplications, fetchNoHearingDates, errorMessage, errorStatus } from './api'
 import { DEMO } from './config'
 import { addDays, dateKey, shortDate, todayKey } from './dates'
 import { buildEntries, courtsOf, groupByDate } from './hearings'
 import { HearingSnapshot, loadHearingCache, saveHearingCache } from './offlineCache'
-import { HearingEntry, Holiday, JudgeLeave, MiscApplication } from './types'
+import { CourtPreferences, HearingEntry, Holiday, JudgeLeave, MiscApplication } from './types'
 
 // Hearings are refreshed quietly when the app comes back to the front, at most this often
 const FOREGROUND_REFRESH_MS = 3 * 60 * 1000
@@ -21,6 +21,7 @@ export function useHearingData(token: string, userId?: number | string) {
   const [noHearing, setNoHearing] = useState<Set<string>>(new Set())
   const [judgeLeaves, setJudgeLeaves] = useState<JudgeLeave[]>([])
   const [courtNames, setCourtNames] = useState<string[]>([])
+  const [courtPrefs, setCourtPrefs] = useState<CourtPreferences | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -37,6 +38,7 @@ export function useHearingData(token: string, userId?: number | string) {
     setHolidays(s.holidays)
     setNoHearing(new Set(s.noHearing))
     setCourtNames([...new Set(s.courts.map(r => (r.court || '').trim()).filter(Boolean))])
+    setCourtPrefs(s.courtPrefs ?? null)
     setEntries(buildEntries(s.cases, s.rows, today, s.apps))
   }, [])
 
@@ -60,13 +62,14 @@ export function useHearingData(token: string, userId?: number | string) {
       const old = saved.current
       let miscProblem = false
       // A part that could not be loaded (null) keeps its saved copy instead of becoming empty
-      const [cases, rows, hol, noH, table, jl, apps] = await Promise.all([
+      const [cases, rows, hol, noH, table, jl, prefs, apps] = await Promise.all([
         fetchCases(token),
         fetchHearings(token, addDays(today, -400), addDays(today, 800)),
         fetchHolidays(token).catch(() => null),
         fetchNoHearingDates(token).catch(() => null),
         fetchCourts(token).catch(() => null),
         fetchJudgeLeaves(token).catch(() => null),
+        fetchCourtPreferences(token).catch(() => undefined),
         fetchMiscApplications(token).catch((e: unknown) => {
           const status = errorStatus(e)
           if (status === 403 || status === 404) return [] as MiscApplication[]
@@ -82,6 +85,8 @@ export function useHearingData(token: string, userId?: number | string) {
         noHearing: Array.isArray(noH) ? noH : old?.noHearing || [],
         courts: Array.isArray(table) ? table : old?.courts || [],
         judgeLeaves: Array.isArray(jl) ? jl : old?.judgeLeaves || [],
+        // A preference that could not be loaded keeps the saved copy; an account without any answer has none
+        courtPrefs: prefs === undefined ? old?.courtPrefs ?? null : prefs,
       }
       if (miscProblem) setNotice('Miscellaneous applications could not be loaded, so they are missing from the calendar.')
       show(fresh, today)
@@ -141,5 +146,12 @@ export function useHearingData(token: string, userId?: number | string) {
     return [...used, ...courtNames.filter(c => !used.includes(c))]
   }, [entries, courtNames])
 
-  return { entries, byDate, judgeLeaves, courts, holidayByDate, noHearing, loading, refreshing, error, notice, reload: () => load(true) }
+  // The courts the user works at (web app Profile), the busiest first. Empty when none was chosen: then every court shows
+  const preferredCourts = useMemo(() => {
+    if (!courtPrefs?.custom) return []
+    const names = [...new Set(courtPrefs.effective.map(p => (p.court || '').trim()).filter(Boolean))]
+    return courtNames.length ? names.filter(c => courtNames.includes(c)) : names
+  }, [courtPrefs, courtNames])
+
+  return { entries, byDate, judgeLeaves, courts, preferredCourts, holidayByDate, noHearing, loading, refreshing, error, notice, reload: () => load(true) }
 }

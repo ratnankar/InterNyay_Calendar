@@ -143,7 +143,7 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
   }, [archive, archiveCutoff, needle])
   const archiveTotal = groups.reduce((n, [, list]) => n + list.length, 0)
 
-  const shown = day ? (leavesByDay.get(day) || []).length : visibleLeaves.length
+  const shown = day ? (leavesByDay.get(day) || []).length : 0
 
   const header = (
     <View style={s.head}>
@@ -301,13 +301,7 @@ export default function LeaveByDay({ month: monthProp, leaves, archive, entries,
       </ScrollView>
 
       <ScrollView style={s.list} contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
-        <Text style={s.summary}>
-          {day
-            ? `${shown} judge${shown === 1 ? '' : 's'} on leave on ${longDate(day)}`
-            : searching
-              ? `${shown} judge${shown === 1 ? '' : 's'} match your search in ${label}${sections.length ? ` · ${sections.length} day${sections.length === 1 ? '' : 's'}` : ''}`
-              : `${shown} judge${shown === 1 ? '' : 's'} on leave in ${label}${sections.length ? ` · ${sections.length} day${sections.length === 1 ? '' : 's'}` : ''}`}
-        </Text>
+        {day ? <Text style={s.summary}>{`${shown} judge${shown === 1 ? '' : 's'} on leave on ${longDate(day)}`}</Text> : null}
         {sections.length === 0 ? (
           <Text style={s.empty}>
             {day ? 'No judges on leave on this day.' : searching ? 'No judges match your search this month.' : filtered ? 'No judges on leave for the selected courts this month.' : 'No judges on leave this month.'}

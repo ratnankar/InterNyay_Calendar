@@ -29,6 +29,8 @@ interface Props {
   noHearing?: boolean
   judgeLeaves: JudgeLeave[]
   courts: string[]
+  leaveCourts?: string[]
+  defaultCourt?: string
   selectedCourt: string[]
   colourOf: (court: string) => string
   onNote: (e: HearingEntry, startNew?: boolean) => void
@@ -56,13 +58,14 @@ function SectionHeader({ colour, label, count }: { colour: string; label: string
   )
 }
 
-function DayLeaveBar({ date, open, onOpenChange, entries, leaves, courts, selectedCourt, colourOf }: {
+function DayLeaveBar({ date, open, onOpenChange, entries, leaves, courts, defaultCourt, selectedCourt, colourOf }: {
   date: string
   open: boolean
   onOpenChange: (open: boolean) => void
   entries: HearingEntry[]
   leaves: JudgeLeave[]
   courts: string[]
+  defaultCourt?: string
   selectedCourt: string[]
   colourOf: (court: string) => string
 }) {
@@ -74,7 +77,7 @@ function DayLeaveBar({ date, open, onOpenChange, entries, leaves, courts, select
       <View style={{ height: HANDLE_HEIGHT + bottomInset }} />
       <LeaveSlider
         open={open} onOpenChange={onOpenChange} date={date} scope="day" bottomInset={bottomInset}
-        leaves={leaves} entries={entries} courts={courts} selectedCourt={selectedCourt} colourOf={colourOf}
+        leaves={leaves} entries={entries} courts={courts} defaultCourt={defaultCourt} selectedCourt={selectedCourt} colourOf={colourOf}
       />
     </>
   )
@@ -82,7 +85,7 @@ function DayLeaveBar({ date, open, onOpenChange, entries, leaves, courts, select
 
 const NO_LEAVE: Record<number, HearingLeave> = {}
 
-export default function DateSheet({ token, date, entries, holiday, noHearing, judgeLeaves, courts, selectedCourt, colourOf, onNote, onClose, onStep }: Props) {
+export default function DateSheet({ token, date, entries, holiday, noHearing, judgeLeaves, courts, leaveCourts, defaultCourt, selectedCourt, colourOf, onNote, onClose, onStep }: Props) {
   const s = useS()
   const [fetched, setFetched] = useState<{ date: string; rows: Record<number, HearingLeave> } | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
@@ -230,7 +233,7 @@ export default function DateSheet({ token, date, entries, holiday, noHearing, ju
         {date ? (
           <DayLeaveBar
             date={date} open={leaveOpen} onOpenChange={setLeaveOpen} entries={entries}
-            leaves={judgeLeaves} courts={courts} selectedCourt={selectedCourt} colourOf={colourOf}
+            leaves={judgeLeaves} courts={leaveCourts ?? courts} defaultCourt={defaultCourt} selectedCourt={selectedCourt} colourOf={colourOf}
           />
         ) : null}
       </View>

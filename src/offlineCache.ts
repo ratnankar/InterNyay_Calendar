@@ -1,5 +1,5 @@
 import { readBig, removeBig, writeBig } from './localStore'
-import { CaseItem, CourtRow, HearingRow, Holiday, JudgeLeave, MiscApplication } from './types'
+import { CaseItem, CourtPreferences, CourtRow, HearingRow, Holiday, JudgeLeave, MiscApplication } from './types'
 
 // The last hearings the server sent, kept on the phone so the calendar opens without internet.
 // One copy per account. It is replaced after every successful load and removed when the user signs out.
@@ -13,6 +13,7 @@ export interface HearingSnapshot {
   noHearing: string[]
   courts: CourtRow[]
   judgeLeaves: JudgeLeave[]
+  courtPrefs?: CourtPreferences | null
 }
 
 const key = (userId: number | string) => `internyay_hearings_${userId}`

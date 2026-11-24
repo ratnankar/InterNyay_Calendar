@@ -123,7 +123,7 @@ export type Field = [label: string, value: string]
 
 const dateText = (d: string) => (d ? fullDate(d) : '')
 
-export function hearingFields(e: HearingEntry, opts: { judge?: string; listNo?: number | string } = {}): Field[] {
+export function hearingFields(e: HearingEntry, opts: { judge?: string; vcLink?: string; listNo?: number | string } = {}): Field[] {
   const many = e.opponents.length > 1
   const lone = e.opponents[0]
   const rows: [string, string | number | undefined | null, boolean?][] = [
@@ -133,6 +133,7 @@ export function hearingFields(e: HearingEntry, opts: { judge?: string; listNo?: 
     ['Building', e.building],
     ['Cause List No', opts.listNo],
     ['Judge', opts.judge ?? e.judgeName],
+    ['VC Link', opts.vcLink ?? e.vcLink],
     ['File No', e.fileNo],
     ['CNR No', e.cnrNo],
     ['Filing Date', dateText(e.caseFilingDate)],
@@ -209,6 +210,7 @@ export function buildEntries(cases: CaseItem[], rows: HearingRow[], today: strin
     district: c.district || '',
     courtNo: c.courtNo || '',
     judgeName: row?.judgeName || c.judgeName || '',
+    vcLink: c.vcLink || '',
     notes: row?.notes || '',
     outcome: row?.outcome || '',
     clientName: c.clientName || '',
@@ -280,6 +282,7 @@ export function buildEntries(cases: CaseItem[], rows: HearingRow[], today: strin
         district: c?.district || a.district || '',
         courtNo: c?.courtNo || '',
         judgeName: c?.judgeName || '',
+        vcLink: c?.vcLink || '',
         notes: note,
         outcome: '',
         clientName: c?.clientName || a.clientName || '',

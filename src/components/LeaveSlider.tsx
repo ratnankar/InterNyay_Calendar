@@ -62,11 +62,13 @@ interface Props {
   leaves: JudgeLeave[]
   entries: HearingEntry[]
   courts: string[]
+  // The court the account prefers (first of the court preferences); opens the panel on it when no court is selected
+  defaultCourt?: string
   selectedCourt: string[]
   colourOf: (court: string) => string
 }
 
-export default function LeaveSlider({ open, onOpenChange, date: dateProp, scope = 'month', bottomInset = 0, leaves, entries: entriesProp, courts, selectedCourt, colourOf }: Props) {
+export default function LeaveSlider({ open, onOpenChange, date: dateProp, scope = 'month', bottomInset = 0, leaves, entries: entriesProp, courts, defaultCourt, selectedCourt, colourOf }: Props) {
   const s = useS()
   // The month panel keeps its own date: picking a day or month here must not move the main hearing calendar.
   // It follows the calendar when the calendar itself moves.
@@ -80,7 +82,13 @@ export default function LeaveSlider({ open, onOpenChange, date: dateProp, scope 
   )
   const reduce = useReduceMotion()
   const [zoneHeight, setZoneHeight] = useState(0)
-  const [chips, setChips] = useState<string[]>(() => (open ? singleCourt(selectedCourt) : []))
+  const preferred = defaultCourt && courts.includes(defaultCourt) ? [defaultCourt] : []
+  const chosen = (selected: string[]) => {
+    const one = singleCourt(selected)
+    // No court picked on the calendar: start on the preferred court ("All" is still one tap away)
+    return one.length || selected.length ? one : preferred
+  }
+  const [chips, setChips] = useState<string[]>(() => (open ? chosen(selectedCourt) : []))
   // Day view search: judge name, court, district or reason
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
@@ -133,7 +141,7 @@ export default function LeaveSlider({ open, onOpenChange, date: dateProp, scope 
   useEffect(() => { if (placed) settle(open) }, [open, settle, placed])
 
   useOnChange(open ? selectedCourt : null, courts => {
-    if (courts) setChips(singleCourt(courts))
+    if (courts) setChips(chosen(courts))
   })
 
   const [pan] = useState(() => createLeavePan(y))
@@ -198,7 +206,6 @@ export default function LeaveSlider({ open, onOpenChange, date: dateProp, scope 
                 <View style={s.handleRow}>
                   <Icon name="leave" size={18} color={theme.danger} />
                   <Text style={s.title}>Judges on leave</Text>
-                  <View style={s.badge}><Text style={s.badgeText}>{monthLeaves.length}</Text></View>
                   <Icon name={open ? 'chevronDown' : 'chevronUp'} size={22} color={theme.muted} />
                 </View>
               </Tappable>
@@ -242,8 +249,6 @@ const useS = makeStyles(() => StyleSheet.create({
   grabber: { position: 'absolute', top: 6, alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: theme.line },
   handleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   title: { flex: 1, ...font.body, fontWeight: '700', color: theme.danger },
-  badge: { minWidth: 22, alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 1, backgroundColor: theme.dangerSoft, borderWidth: 1, borderColor: theme.dangerLine },
-  badgeText: { ...font.caption, fontVariant: font.digits, fontWeight: '700', color: theme.danger },
   list: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24, gap: 12 },
   summary: { ...font.small, color: theme.muted },

@@ -1,6 +1,6 @@
 import { API_BASE_URL, DEMO } from './config'
 import * as demo from './demo'
-import { CaseItem, Note, CourtRow, HearingLeave, JudgeLeave, HearingRow, Holiday, LoginResponse, MiscApplication, Page, User } from './types'
+import { CaseItem, Note, CourtPreferences, CourtRow, HearingLeave, JudgeLeave, HearingRow, Holiday, LoginResponse, MiscApplication, Page, User } from './types'
 
 class ApiError extends Error {
   status: number
@@ -97,6 +97,9 @@ export const fetchMiscApplications = (token: string) =>
 export const fetchMe = (token: string) => DEMO ? Promise.resolve(demo.user) : get<User>('/auth/me', token)
 
 export const fetchCourts = (token: string) => DEMO ? Promise.resolve(demo.courts()) : get<CourtRow[]>('/courts', token)
+
+// The same court preferences the web app uses (/court-preferences). Without a chosen court the app shows every court
+export const fetchCourtPreferences = (token: string) => DEMO ? Promise.resolve<CourtPreferences | null>(null) : get<CourtPreferences>('/court-preferences', token)
 
 export const fetchHolidays = (token: string) => DEMO ? Promise.resolve(demo.holidays()) : get<Holiday[]>('/holidays', token)
 

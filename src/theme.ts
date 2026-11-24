@@ -99,6 +99,7 @@ export const font = {
   weekday: { fontSize: 11, lineHeight: 24 },
   microWide: { fontSize: 11, lineHeight: 15, letterSpacing: 0.8 },
   caption: { fontSize: 12, lineHeight: 16, letterSpacing: 0.1 },
+  dayName: { fontSize: 13, lineHeight: 18, letterSpacing: 0.1 },
   captionLong: { fontSize: 12, lineHeight: 18 },
   small: { fontSize: 13, lineHeight: 18 },
   body: { fontSize: 14, lineHeight: 20 },
